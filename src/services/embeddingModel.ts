@@ -49,8 +49,19 @@ async function carregarModelo(): Promise<TensorflowModel> {
  */
 export async function calcularEmbedding(uriImagem: string, caixa: CaixaRosto): Promise<number[]> {
   const modelo = await carregarModelo();
-  const { largura: imgLargura, altura: imgAltura } = await obterDimensoesImagem(uriImagem);
-  const caixaComMargem = aplicarMargem(caixa, imgLargura, imgAltura);
+  const caixaComMargem = await calcularCaixaComMargemSegura(uriImagem, caixa);
+
+  // Guarda contra um recorte degenerado (praticamente 1x1 px esticado pra
+  // 112x112): isso não dá erro em lugar nenhum do pipeline, só produz um
+  // embedding sem nenhuma informação do rosto — e todo mundo passa a parecer
+  // igualmente "diferente" de todo mundo. Prefere falhar de forma visível.
+  const AREA_MINIMA_AGEITAVEL = 20 * 20;
+  if (caixaComMargem.largura * caixaComMargem.altura < AREA_MINIMA_AGEITAVEL) {
+    throw new Error(
+      `Recorte do rosto ficou pequeno demais (${caixaComMargem.largura}x${caixaComMargem.altura}px) ` +
+        "— não deu pra calcular um embedding confiável."
+    );
+  }
 
   const recorte = await ImageManipulator.manipulateAsync(
     uriImagem,
@@ -76,6 +87,25 @@ export async function calcularEmbedding(uriImagem: string, caixa: CaixaRosto): P
   const saidas = modelo.runSync([entrada.buffer as ArrayBuffer]);
   // A primeira (e única) saída do modelo é o vetor de embedding (ex.: 192 floats).
   return Array.from(new Float32Array(saidas[0]));
+}
+
+/**
+ * Aplica a margem ao redor do rosto, mas só quando dá pra confirmar o tamanho
+ * real da imagem (necessário pra não estourar os limites dela). Se
+ * `Image.getSize` falhar ou devolver algo inválido, usa a caixa original do
+ * detector sem margem — mais seguro do que arriscar um recorte praticamente
+ * vazio (ver a checagem de área mínima em `calcularEmbedding`).
+ */
+async function calcularCaixaComMargemSegura(uriImagem: string, caixa: CaixaRosto): Promise<CaixaRosto> {
+  try {
+    const { largura, altura } = await obterDimensoesImagem(uriImagem);
+    if (largura > 0 && altura > 0) {
+      return aplicarMargem(caixa, largura, altura);
+    }
+  } catch {
+    // segue sem margem abaixo
+  }
+  return caixa;
 }
 
 /** Dimensões da imagem original — necessárias pra aplicar a margem do recorte com segurança. */

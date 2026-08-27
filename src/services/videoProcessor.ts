@@ -6,7 +6,7 @@ import {
   VideoAsset,
 } from "../types";
 import { reconhecerRostos } from "./faceRecognition";
-import { encontrarMaisProximo } from "../utils/vectorMath";
+import { encontrarMaisProximo, norma } from "../utils/vectorMath";
 
 // Momentos do vídeo (em ms, a partir do início) de onde extraímos frames para analisar.
 // Amostrar mais de um instante aumenta a chance de pegar um rosto de frente e bem iluminado.
@@ -36,6 +36,7 @@ export async function processarVideo(
             clienteId: proximo.candidato.id,
             nome: proximo.candidato.nome,
             distancia: proximo.distancia,
+            normaEmbeddingDetectado: norma(rosto.embedding),
           });
         }
       }

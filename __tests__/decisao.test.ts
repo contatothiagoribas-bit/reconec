@@ -68,4 +68,11 @@ describe("descreverDiagnostico", () => {
     ];
     expect(descreverDiagnostico(correspondencias)).toBe("mais parecido: Ana (distância 0.90)");
   });
+
+  it("inclui a norma do embedding quando disponível", () => {
+    const correspondencias: Correspondencia[] = [
+      { clienteId: 1, nome: "Ana", distancia: 0.9, normaEmbeddingDetectado: 3.456 },
+    ];
+    expect(descreverDiagnostico(correspondencias)).toBe("mais parecido: Ana (distância 0.90, norma 3.46)");
+  });
 });

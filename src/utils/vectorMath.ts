@@ -51,6 +51,20 @@ export function distanciaEuclidiana(a: number[], b: number[]): number {
   return Math.sqrt(somaQuadrados);
 }
 
+/**
+ * Norma euclidiana (magnitude) de um vetor. Útil como diagnóstico: se embeddings
+ * de fotos bem diferentes sempre derem normas muito parecidas (ou 0), é sinal de
+ * que o modelo não está reagindo ao conteúdo da imagem — não é uma métrica de
+ * identidade, só um sinal de "o cálculo está fazendo alguma coisa que varia".
+ */
+export function norma(v: number[]): number {
+  let somaQuadrados = 0;
+  for (const x of v) {
+    somaQuadrados += x * x;
+  }
+  return Math.sqrt(somaQuadrados);
+}
+
 /** Média ponto a ponto de vários embeddings (ex.: várias fotos do mesmo cliente). */
 export function mediaVetores(vetores: number[][]): number[] {
   if (vetores.length === 0) {

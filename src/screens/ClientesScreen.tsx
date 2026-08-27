@@ -15,6 +15,7 @@ import { Cliente } from "../types";
 import { listarClientes, removerCliente } from "../db/clientesRepository";
 import { cadastrarCliente } from "../services/cadastroCliente";
 import { garantirPermissaoCamera } from "../services/permissoes";
+import { norma } from "../utils/vectorMath";
 
 export default function ClientesScreen() {
   const [clientes, setClientes] = useState<Cliente[]>([]);
@@ -147,7 +148,10 @@ export default function ClientesScreen() {
           renderItem={({ item }) => (
             <View style={estilos.linhaCliente}>
               {item.fotos[0] && <Image source={{ uri: item.fotos[0] }} style={estilos.avatar} />}
-              <Text style={estilos.nomeCliente}>{item.nome}</Text>
+              <View style={estilos.infoCliente}>
+                <Text style={estilos.nomeCliente}>{item.nome}</Text>
+                <Text style={estilos.normaCliente}>assinatura: norma {norma(item.embedding).toFixed(2)}</Text>
+              </View>
               <TouchableOpacity onPress={() => confirmarExclusao(item)}>
                 <Text style={estilos.linkRemover}>Remover</Text>
               </TouchableOpacity>
@@ -202,6 +206,8 @@ const estilos = StyleSheet.create({
     gap: 10,
   },
   avatar: { width: 36, height: 36, borderRadius: 18 },
-  nomeCliente: { flex: 1, fontSize: 15 },
+  infoCliente: { flex: 1 },
+  nomeCliente: { fontSize: 15 },
+  normaCliente: { fontSize: 11, color: "#999" },
   linkRemover: { color: "#d33", fontWeight: "500" },
 });

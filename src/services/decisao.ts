@@ -47,5 +47,9 @@ export function descreverDiagnostico(correspondencias: Correspondencia[]): strin
   }
 
   const maisProximo = correspondencias.reduce((a, b) => (a.distancia <= b.distancia ? a : b));
-  return `mais parecido: ${maisProximo.nome} (distância ${maisProximo.distancia.toFixed(2)})`;
+  const normaTexto =
+    maisProximo.normaEmbeddingDetectado !== undefined
+      ? `, norma ${maisProximo.normaEmbeddingDetectado.toFixed(2)}`
+      : "";
+  return `mais parecido: ${maisProximo.nome} (distância ${maisProximo.distancia.toFixed(2)}${normaTexto})`;
 }

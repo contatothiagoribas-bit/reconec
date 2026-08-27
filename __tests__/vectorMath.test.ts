@@ -3,6 +3,7 @@ import {
   distanciaEuclidiana,
   mediaVetores,
   encontrarMaisProximo,
+  norma,
 } from "../src/utils/vectorMath";
 
 describe("distanciaCosseno", () => {
@@ -46,6 +47,16 @@ describe("distanciaEuclidiana", () => {
 
   it("lança erro para vetores vazios", () => {
     expect(() => distanciaEuclidiana([], [])).toThrow();
+  });
+});
+
+describe("norma", () => {
+  it("calcula a magnitude do vetor", () => {
+    expect(norma([3, 4])).toBe(5);
+  });
+
+  it("retorna 0 para o vetor nulo", () => {
+    expect(norma([0, 0, 0])).toBe(0);
   });
 });
 

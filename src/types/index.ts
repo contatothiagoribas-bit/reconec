@@ -32,6 +32,8 @@ export interface Correspondencia {
   clienteId: number;
   nome: string;
   distancia: number;
+  /** Magnitude do embedding detectado no vídeo — só pra diagnóstico (ver descreverDiagnostico). */
+  normaEmbeddingDetectado?: number;
 }
 
 /** Resultado do processamento de um vídeo: quais clientes foram reconhecidos nele. */
