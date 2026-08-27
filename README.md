@@ -110,3 +110,20 @@ npm run typecheck
 A parte que depende de hardware (câmera, ML Kit, TFLite) só pode ser validada
 rodando o app de verdade em um device/emulador, via `expo run:android` /
 `expo run:ios`.
+
+### O que já foi validado sem device/emulador
+
+- `npx expo prebuild` roda limpo (gera `android/` e `ios/` sem erros) — confirma
+  que os plugins de config, permissões e o autolinking dos módulos nativos
+  (`expo-media-library`, `expo-image-picker`, `expo-sqlite`, ML Kit,
+  `react-native-fast-tflite`) estão corretos.
+- As permissões geradas foram conferidas nos dois projetos nativos:
+  `AndroidManifest.xml` (`CAMERA`, `READ_MEDIA_VIDEO`, `READ_MEDIA_IMAGES`, etc.)
+  e `Info.plist` (`NSCameraUsageDescription`, `NSPhotoLibraryUsageDescription`,
+  `NSPhotoLibraryAddUsageDescription`).
+
+O que **não** dá para validar sem SDK/emulador reais: compilar de fato o APK/IPA
+(`expo run:android`/`run:ios` requer Android SDK + JDK 17 ou Xcode) e o
+comportamento em runtime (câmera, detecção/reconhecimento facial, criação dos
+álbuns). Isso só é possível rodando o app num Android Studio / Xcode / device
+físico.

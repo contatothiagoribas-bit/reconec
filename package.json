@@ -21,6 +21,7 @@
     "expo-media-library": "~57.0.4",
     "expo-sqlite": "~57.0.2",
     "expo-status-bar": "~57.0.1",
+    "expo-system-ui": "~57.0.3",
     "expo-video-thumbnails": "~57.0.1",
     "jpeg-js": "^0.4.4",
     "react": "19.2.3",
