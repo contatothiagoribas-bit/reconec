@@ -1,5 +1,13 @@
 import React, { useState } from "react";
-import { SafeAreaView, View, Text, TouchableOpacity, StyleSheet } from "react-native";
+import {
+  SafeAreaView,
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  Platform,
+  StatusBar as StatusBarNativo,
+} from "react-native";
 import { StatusBar } from "expo-status-bar";
 import ClientesScreen from "./src/screens/ClientesScreen";
 import ProcessarScreen from "./src/screens/ProcessarScreen";
@@ -32,10 +40,22 @@ export default function App() {
 
 const estilos = StyleSheet.create({
   raiz: { flex: 1, backgroundColor: "#fff" },
-  cabecalho: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 4 },
+  cabecalho: {
+    paddingHorizontal: 16,
+    // No Android, o SafeAreaView do React Native não afasta a barra de status
+    // sozinho — soma manualmente a altura dela pra não ficar por baixo do relógio.
+    paddingTop: (Platform.OS === "android" ? StatusBarNativo.currentHeight ?? 24 : 0) + 8,
+    paddingBottom: 4,
+  },
   titulo: { fontSize: 22, fontWeight: "700" },
   conteudo: { flex: 1 },
-  tabs: { flexDirection: "row", borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: "#ddd" },
+  tabs: {
+    flexDirection: "row",
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: "#ddd",
+    // Mesma lógica no rodapé: afasta as abas da barra de gestos/botões do Android.
+    paddingBottom: Platform.OS === "android" ? 16 : 0,
+  },
   tab: { flex: 1, paddingVertical: 12, alignItems: "center" },
   textoTab: { color: "#888", fontWeight: "500" },
   textoTabAtiva: { color: "#2f6fed" },
