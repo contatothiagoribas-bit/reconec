@@ -1,11 +1,51 @@
 # Como testar o Reconec de verdade
 
 Este app usa módulos nativos (ML Kit, TFLite) que **não funcionam no Expo Go**.
-Tem três formas de testar num celular de verdade — escolha a que for mais
-prática pra você. Se você só tem o celular (sem computador), vá direto pra
-**Opção C**.
+Tem quatro formas de testar num celular de verdade. Se você só tem o celular
+(sem computador) e não quer usar terminal nenhum, vá direto pra **Opção D**.
 
-## Opção C — Só tenho celular (GitHub Codespaces, tudo pelo navegador)
+## Opção D — Só tenho celular, sem digitar comando nenhum (GitHub Actions)
+
+Aqui você só clica em botões na própria página do GitHub, pelo navegador do
+celular. Nada de terminal, nada de digitar comando.
+
+1. Gere um token na Expo: abra https://expo.dev/settings/access-tokens
+   (logado na sua conta), toque em **"Create token"**, dê um nome qualquer
+   (ex.: "github-actions") e copie o valor gerado.
+
+   > ⚠️ Se você já tinha criado um token antes e mandou ele em algum chat,
+   > revogue o antigo primeiro (botão de lixeira ao lado dele nessa mesma
+   > página) e use um novo aqui.
+
+2. Guarde esse token **só no GitHub**, nunca em chat: abra
+   `https://github.com/contatothiagoribas-bit/reconec/settings/secrets/actions`
+   → **"New repository secret"** → em "Name" coloque exatamente `EXPO_TOKEN` →
+   em "Secret" cole o token → **"Add secret"**.
+
+3. Vá em `https://github.com/contatothiagoribas-bit/reconec/actions/workflows/eas-build.yml`
+   → toque em **"Run workflow"** → confira se o branch selecionado é
+   `claude/app-reconhecimento-aac9gp` → deixe "profile" em `development` e
+   "platform" em `android` → toque em **"Run workflow"** de novo pra
+   confirmar.
+
+4. Toque no card que aparece (a execução em andamento) pra acompanhar o log.
+   Demora uns 15-20 minutos. Quando terminar com um ✅ verde, o link do
+   `.apk` aparece no final do log da etapa **"Rodar build na nuvem da
+   Expo"** — ou você acha o build pronto direto em
+   `https://expo.dev` (na sua conta → o projeto **reconec** → aba "Builds").
+
+5. Abra esse link **no navegador do celular** → botão pra baixar/instalar o
+   `.apk` (autorize "instalar de fontes desconhecidas" se o Android pedir).
+
+6. Pronto — abra o app **Reconec** que apareceu no celular e siga o
+   [roteiro de teste](#roteiro-de-teste-sugerido) mais abaixo.
+
+> Esse workflow já está configurado no repositório
+> (`.github/workflows/eas-build.yml`) — você só precisa fazer os passos 1-3
+> uma vez. Da próxima vez que eu avisar que preparei uma atualização, é só
+> repetir o passo 3 em diante.
+
+## Opção C — Só tenho celular, mas topo digitar uns comandos (GitHub Codespaces)
 
 Aqui você usa um "computador na nuvem" gratuito, direto pelo navegador do
 próprio celular — não precisa instalar nada, nem ter um PC.

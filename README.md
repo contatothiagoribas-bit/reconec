@@ -48,8 +48,10 @@ npx expo prebuild        # gera as pastas android/ e ios/
 npx expo run:android     # ou: npx expo run:ios (precisa de macOS)
 ```
 
-Não tem Android Studio/Xcode instalado? Veja [`TESTING.md`](TESTING.md) para
-gerar um `.apk` na nuvem (EAS Build) e instalar direto no celular.
+Não tem Android Studio/Xcode instalado — ou só tem o celular? Veja
+[`TESTING.md`](TESTING.md): tem um jeito de gerar o `.apk` na nuvem (EAS
+Build) e instalar direto no celular sem precisar de terminal nenhum (só
+clicando em botões no GitHub).
 
 O modelo de reconhecimento facial (`assets/models/mobilefacenet.tflite`) já vem
 incluso no repositório — não é preciso baixar nada à parte. Detalhes de origem,

@@ -42,6 +42,11 @@
           "cameraPermission": "Permitir uso da câmera para fotografar o cliente."
         }
       ]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "0ded84c0-9796-4094-9f49-4a371a6f4a1d"
+      }
+    }
   }
 }

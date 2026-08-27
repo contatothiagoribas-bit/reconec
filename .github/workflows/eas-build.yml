@@ -1,0 +1,51 @@
+name: Gerar build (EAS)
+
+# Dispara manualmente pela aba "Actions" do GitHub (botão "Run workflow") —
+# não precisa de terminal nem computador, só o navegador.
+on:
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: "Perfil de build (veja eas.json)"
+        required: true
+        default: development
+        type: choice
+        options:
+          - development
+          - preview
+          - production
+      platform:
+        description: "Plataforma"
+        required: true
+        default: android
+        type: choice
+        options:
+          - android
+          - ios
+          - all
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Baixar o código
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Instalar dependências
+        run: npm ci
+
+      - name: Configurar EAS
+        uses: expo/expo-github-action@v9
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+          packager: npm
+
+      - name: Rodar build na nuvem da Expo
+        run: eas build --platform ${{ inputs.platform }} --profile ${{ inputs.profile }} --non-interactive --wait
