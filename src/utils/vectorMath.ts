@@ -30,6 +30,27 @@ export function distanciaCosseno(a: number[], b: number[]): number {
   return 1 - similaridade;
 }
 
+/**
+ * Distância euclidiana entre dois vetores. É a métrica recomendada pelo modelo
+ * MobileFaceNet embutido no app (veja `assets/models/README.md`) — quanto menor,
+ * mais parecidos os rostos.
+ */
+export function distanciaEuclidiana(a: number[], b: number[]): number {
+  if (a.length !== b.length) {
+    throw new Error(`Vetores de tamanhos diferentes: ${a.length} e ${b.length}`);
+  }
+  if (a.length === 0) {
+    throw new Error("Vetores vazios não podem ser comparados");
+  }
+
+  let somaQuadrados = 0;
+  for (let i = 0; i < a.length; i++) {
+    const diferenca = a[i] - b[i];
+    somaQuadrados += diferenca * diferenca;
+  }
+  return Math.sqrt(somaQuadrados);
+}
+
 /** Média ponto a ponto de vários embeddings (ex.: várias fotos do mesmo cliente). */
 export function mediaVetores(vetores: number[][]): number[] {
   if (vetores.length === 0) {
@@ -51,16 +72,19 @@ export function mediaVetores(vetores: number[][]): number[] {
 /**
  * Encontra, dentre uma lista de clientes com embedding, qual está mais próximo do
  * embedding informado, junto com a distância. Retorna null se a lista estiver vazia.
+ * Usa distância euclidiana por padrão (a métrica do modelo embutido no app), mas
+ * aceita outra função de distância caso o modelo seja trocado.
  */
 export function encontrarMaisProximo<T extends { embedding: number[] }>(
   embedding: number[],
-  candidatos: T[]
+  candidatos: T[],
+  distancia: (a: number[], b: number[]) => number = distanciaEuclidiana
 ): { candidato: T; distancia: number } | null {
   let melhor: { candidato: T; distancia: number } | null = null;
   for (const candidato of candidatos) {
-    const distancia = distanciaCosseno(embedding, candidato.embedding);
-    if (!melhor || distancia < melhor.distancia) {
-      melhor = { candidato, distancia };
+    const d = distancia(embedding, candidato.embedding);
+    if (!melhor || d < melhor.distancia) {
+      melhor = { candidato, distancia: d };
     }
   }
   return melhor;

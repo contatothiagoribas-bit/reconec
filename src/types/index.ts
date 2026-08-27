@@ -47,7 +47,11 @@ export type EstrategiaOrganizacao = "todas_correspondencias" | "melhor_correspon
 
 /** Configuração ajustável do reconhecimento e da organização. */
 export interface ConfiguracaoReconhecimento {
-  /** Distância máxima (0 a 2, cosseno) para considerar um rosto como pertencente a um cliente. Menor = mais rígido. */
+  /**
+   * Distância euclidiana máxima entre embeddings para considerar um rosto como
+   * pertencente a um cliente (métrica do modelo MobileFaceNet embutido — veja
+   * `assets/models/README.md`). Menor = mais rígido. Padrão recomendado: `0.5`.
+   */
   limiarDistancia: number;
   /** Nome do álbum onde vídeos sem nenhum cliente reconhecido são colocados. */
   albumNaoReconhecidos: string;

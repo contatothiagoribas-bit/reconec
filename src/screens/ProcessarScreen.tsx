@@ -8,7 +8,8 @@ import { organizarVideo } from "../services/organizador";
 import { garantirPermissaoMidia } from "../services/permissoes";
 
 const CONFIG_PADRAO: ConfiguracaoReconhecimento = {
-  limiarDistancia: 0.4,
+  // 0.5 = mesmo limiar validado no app de referência do modelo (distância euclidiana).
+  limiarDistancia: 0.5,
   albumNaoReconhecidos: "Nao_Reconhecidos",
   estrategia: "todas_correspondencias",
 };

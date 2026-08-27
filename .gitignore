@@ -20,6 +20,3 @@ yarn-error.*
 
 .DS_Store
 *.tsbuildinfo
-
-# Modelo de reconhecimento facial: arquivo grande, obtido à parte (veja assets/models/README.md)
-assets/models/*.tflite

@@ -11,11 +11,9 @@ const TAMANHO_ENTRADA = 112;
 let modeloPromise: Promise<TensorflowModel> | null = null;
 
 /**
- * Carrega (uma única vez) o modelo TFLite de embedding facial.
- *
- * IMPORTANTE: o arquivo do modelo não é distribuído neste repositório — veja
- * `assets/models/README.md` para instruções de como obtê-lo e onde colocá-lo antes
- * de rodar o app.
+ * Carrega (uma única vez) o modelo TFLite de embedding facial (MobileFaceNet),
+ * já incluído em `assets/models/mobilefacenet.tflite` — origem e licença
+ * (BSD-3-Clause) documentadas em `assets/models/README.md`.
  */
 function carregarModelo(): Promise<TensorflowModel> {
   if (!modeloPromise) {
@@ -68,10 +66,11 @@ function decodificarJpegParaTensor(base64: string, tamanho: number): Float32Arra
 
   const tensor = new Float32Array(tamanho * tamanho * 3);
   for (let i = 0, j = 0; i < data.length; i += 4, j += 3) {
-    // Normaliza de [0,255] para [-1,1], padrão usado por MobileFaceNet/FaceNet.
-    tensor[j] = (data[i] - 127.5) / 128;
-    tensor[j + 1] = (data[i + 1] - 127.5) / 128;
-    tensor[j + 2] = (data[i + 2] - 127.5) / 128;
+    // Normalização exigida pelo mobilefacenet.tflite embutido no app — ver
+    // assets/models/README.md (mesma fórmula usada no app de referência do modelo).
+    tensor[j] = (data[i] - 128) / 128;
+    tensor[j + 1] = (data[i + 1] - 128) / 128;
+    tensor[j + 2] = (data[i + 2] - 128) / 128;
   }
   return tensor;
 }

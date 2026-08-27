@@ -33,6 +33,9 @@ aparecer nele (comportamento padrão, configurável — veja abaixo).
 - `@react-native-ml-kit/face-detection` — detecção de rosto (bounding box), on-device
 - `react-native-fast-tflite` — roda o modelo de embedding facial (TFLite) no aparelho
 - `jpeg-js` / `base64-js` — decodificação do frame recortado em pixels, em JS puro
+- **MobileFaceNet** (`assets/models/mobilefacenet.tflite`) — modelo de embedding
+  facial já incluído no repositório, open-source, licença BSD-3-Clause (origem e
+  detalhes em [`assets/models/README.md`](assets/models/README.md))
 
 ## ⚠️ Antes de rodar
 
@@ -45,10 +48,9 @@ npx expo prebuild        # gera as pastas android/ e ios/
 npx expo run:android     # ou: npx expo run:ios (precisa de macOS)
 ```
 
-Você também precisa colocar o modelo de reconhecimento facial em
-`assets/models/mobilefacenet.tflite` antes de compilar — veja as instruções em
-[`assets/models/README.md`](assets/models/README.md). Sem esse arquivo, o
-cálculo do embedding falha ao carregar o modelo.
+O modelo de reconhecimento facial (`assets/models/mobilefacenet.tflite`) já vem
+incluso no repositório — não é preciso baixar nada à parte. Detalhes de origem,
+licença e especificações em [`assets/models/README.md`](assets/models/README.md).
 
 ## Cadastrando um cliente
 
@@ -74,12 +76,19 @@ Os parâmetros usados no processamento ficam em
 
 | Campo | Efeito |
 |---|---|
-| `limiarDistancia` | Distância máxima (cosseno, 0 a 2) para considerar um rosto como pertencente a um cliente. Menor = mais rígido (menos falsos positivos, mais falsos negativos). Padrão: `0.4`. |
+| `limiarDistancia` | Distância euclidiana máxima entre embeddings para considerar um rosto como pertencente a um cliente. Menor = mais rígido (menos falsos positivos, mais falsos negativos). Padrão: `0.5` (mesmo valor validado no app de referência do modelo). |
 | `estrategia` | `"todas_correspondencias"` (padrão, coloca o vídeo em todos os álbuns dos clientes encontrados) ou `"melhor_correspondencia"` (só o cliente mais parecido). |
 | `albumNaoReconhecidos` | Nome do álbum para vídeos sem nenhum cliente reconhecido. |
 
 Os instantes do vídeo analisados (em segundos) ficam em
 `INSTANTES_AMOSTRA_MS`, em `src/services/videoProcessor.ts`.
+
+## Créditos
+
+O modelo de reconhecimento facial (MobileFaceNet, `.tflite`) vem do repositório
+open-source [`MCarlomagno/FaceRecognitionAuth`](https://github.com/MCarlomagno/FaceRecognitionAuth)
+(licença BSD-3-Clause — texto completo em
+[`assets/models/LICENSE-mobilefacenet.txt`](assets/models/LICENSE-mobilefacenet.txt)).
 
 ## Privacidade
 
