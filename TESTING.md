@@ -1,10 +1,55 @@
 # Como testar o Reconec de verdade
 
 Este app usa módulos nativos (ML Kit, TFLite) que **não funcionam no Expo Go**.
-Tem duas formas de testar num celular de verdade — escolha a que for mais
-prática pra você.
+Tem três formas de testar num celular de verdade — escolha a que for mais
+prática pra você. Se você só tem o celular (sem computador), vá direto pra
+**Opção C**.
 
-## Opção A — Build na nuvem com EAS (recomendado, não precisa Android Studio/Xcode)
+## Opção C — Só tenho celular (GitHub Codespaces, tudo pelo navegador)
+
+Aqui você usa um "computador na nuvem" gratuito, direto pelo navegador do
+próprio celular — não precisa instalar nada, nem ter um PC.
+
+1. No navegador do celular, abra https://github.com/contatothiagoribas-bit/reconec
+   e faça login na sua conta do GitHub (a mesma que já criou esse repositório).
+2. Toque no seletor de branch (o botão que hoje mostra "main" ou o nome de
+   outra branch, geralmente perto do canto superior esquerdo da lista de
+   arquivos) e escolha `claude/app-reconhecimento-aac9gp`.
+3. Toque no botão verde **"Code"**.
+4. Na aba **"Codespaces"** (dentro desse mesmo menu), toque em
+   **"Create codespace on claude/app-reconhecimento-aac9gp"**.
+5. Espera 1–2 minutos carregando. Vai abrir uma tela parecida com um editor de
+   código, com um **terminal** (uma caixa preta de texto) na parte de baixo —
+   é lá que você vai digitar os comandos. Se não aparecer sozinho, procure um
+   ícone de menu (☰) e toque em algo como "Terminal → New Terminal".
+6. No terminal, cole (um comando de cada vez, apertando Enter depois de cada
+   um):
+   ```bash
+   npx eas-cli login
+   ```
+   Isso mostra um link. Toque nele (ou copie e abra em outra aba) pra fazer
+   login normalmente na Expo, depois volte pro terminal.
+   ```bash
+   npx eas-cli init --id 0ded84c0-9796-4094-9f49-4a371a6f4a1d
+   npm run build:dev
+   ```
+7. O último comando demora de 10 a 20 minutos (roda na nuvem da Expo — dá pra
+   trocar de aba/sair e voltar depois, ele continua rodando). No final aparece
+   um link parecido com:
+   ```
+   https://expo.dev/accounts/.../projects/reconec/builds/xxxxx
+   ```
+8. Abre esse link **no navegador do celular** (não precisa mais estar no
+   Codespaces) — lá tem um botão pra baixar e instalar o `.apk`. O Android vai
+   pedir pra liberar "instalar de fontes desconhecidas" — é normal, autorize.
+9. Depois de instalado, abra o app **Reconec** no celular. Ele já funciona
+   sozinho a partir daí — não precisa mais do Codespaces pros testes do dia a
+   dia (só se eu mudar algo que exija gerar um `.apk` novo).
+
+> Guarda o link do passo 7 — é por ele que você baixa o app de novo se
+> desinstalar, ou se eu avisar que preparei uma nova versão.
+
+## Opção A — Build na nuvem com EAS, no seu próprio computador
 
 Você gera o `.apk` na nuvem da Expo e instala direto no seu Android. Roda tudo
 no seu computador normal (sem precisar de SDK Android instalado).

@@ -1,0 +1,6 @@
+{
+  "name": "Reconec (build EAS)",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:22",
+  "postCreateCommand": "npm install",
+  "waitFor": "postCreateCommand"
+}
