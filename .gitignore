@@ -1,0 +1,25 @@
+node_modules/
+.expo/
+.expo-shared/
+dist/
+web-build/
+android/
+ios/
+
+# builds nativos gerados por `expo prebuild`
+*.orig.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+
+.DS_Store
+*.tsbuildinfo
+
+# Modelo de reconhecimento facial: arquivo grande, obtido à parte (veja assets/models/README.md)
+assets/models/*.tflite

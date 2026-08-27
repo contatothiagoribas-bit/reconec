@@ -1,0 +1,47 @@
+{
+  "expo": {
+    "name": "Reconec",
+    "slug": "reconec",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "assetBundlePatterns": ["assets/models/*.tflite"],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.reconec.app",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Usado para tirar a foto de referência do cliente.",
+        "NSPhotoLibraryUsageDescription": "Usado para selecionar fotos de clientes e vídeos a organizar.",
+        "NSPhotoLibraryAddUsageDescription": "Usado para criar os álbuns organizados por cliente."
+      }
+    },
+    "android": {
+      "package": "com.reconec.app",
+      "permissions": [
+        "CAMERA",
+        "READ_MEDIA_VIDEO",
+        "READ_MEDIA_IMAGES",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE"
+      ]
+    },
+    "plugins": [
+      "expo-sqlite",
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "Permitir acesso às fotos e vídeos para organizá-los por cliente.",
+          "savePhotosPermission": "Permitir criar álbuns organizados por cliente.",
+          "isAccessMediaLocationEnabled": true
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Permitir acesso às fotos para cadastrar clientes.",
+          "cameraPermission": "Permitir uso da câmera para fotografar o cliente."
+        }
+      ]
+    ]
+  }
+}
