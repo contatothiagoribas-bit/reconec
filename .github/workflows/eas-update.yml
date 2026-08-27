@@ -1,0 +1,47 @@
+name: Publicar atualização (EAS Update)
+
+# Publica uma atualização OTA (só o código JS/TS) para quem já tem o app
+# instalado — sem precisar gerar um .apk novo nem reinstalar nada no celular.
+# Dispara pela aba "Actions" do GitHub, sem terminal.
+on:
+  workflow_dispatch:
+    inputs:
+      channel:
+        description: "Canal (precisa bater com o perfil usado no build instalado)"
+        required: true
+        default: preview
+        type: choice
+        options:
+          - preview
+          - development
+          - production
+      message:
+        description: "Descrição da atualização (aparece no histórico do EAS)"
+        required: false
+        default: "Atualização"
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Baixar o código
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Instalar dependências
+        run: npm ci
+
+      - name: Configurar EAS
+        uses: expo/expo-github-action@v9
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+          packager: npm
+
+      - name: Publicar atualização
+        run: eas update --channel ${{ inputs.channel }} --message "${{ inputs.message }}" --non-interactive

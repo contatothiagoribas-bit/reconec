@@ -6,13 +6,13 @@ on:
   workflow_dispatch:
     inputs:
       profile:
-        description: "Perfil de build (veja eas.json)"
+        description: "Perfil de build (veja eas.json). 'preview' abre direto, sem precisar de computador; 'development' precisa de 'npm start' rodando pra funcionar."
         required: true
-        default: development
+        default: preview
         type: choice
         options:
-          - development
           - preview
+          - development
           - production
       platform:
         description: "Plataforma"
