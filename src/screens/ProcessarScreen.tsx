@@ -5,6 +5,7 @@ import { listarClientes } from "../db/clientesRepository";
 import { listarVideosDoDispositivo } from "../services/biblioteca";
 import { processarVideo } from "../services/videoProcessor";
 import { organizarVideo } from "../services/organizador";
+import { descreverDiagnostico } from "../services/decisao";
 import { garantirPermissaoMidia } from "../services/permissoes";
 
 const CONFIG_PADRAO: ConfiguracaoReconhecimento = {
@@ -18,6 +19,7 @@ interface ItemProcessamento {
   video: VideoAsset;
   status: "pendente" | "processando" | "concluido" | "erro";
   albuns?: string[];
+  diagnostico?: string;
   mensagemErro?: string;
 }
 
@@ -60,8 +62,11 @@ export default function ProcessarScreen() {
         try {
           const resultado: ResultadoProcessamento = await processarVideo(itens[i].video, clientes);
           const albuns = await organizarVideo(resultado, CONFIG_PADRAO);
+          const diagnostico = descreverDiagnostico(resultado.clientesReconhecidos);
           setItens((atual) =>
-            atual.map((item, idx) => (idx === i ? { ...item, status: "concluido", albuns } : item))
+            atual.map((item, idx) =>
+              idx === i ? { ...item, status: "concluido", albuns, diagnostico } : item
+            )
           );
         } catch (erro) {
           setItens((atual) =>
@@ -113,10 +118,13 @@ export default function ProcessarScreen() {
         }
         renderItem={({ item }) => (
           <View style={estilos.linhaVideo}>
-            <Text style={estilos.nomeVideo} numberOfLines={1}>
-              {item.video.nomeArquivo}
-            </Text>
-            <Text style={estilos.status}>{descreverStatus(item)}</Text>
+            <View style={estilos.linhaPrincipal}>
+              <Text style={estilos.nomeVideo} numberOfLines={1}>
+                {item.video.nomeArquivo}
+              </Text>
+              <Text style={estilos.status}>{descreverStatus(item)}</Text>
+            </View>
+            {item.diagnostico && <Text style={estilos.diagnostico}>{item.diagnostico}</Text>}
           </View>
         )}
       />
@@ -164,13 +172,12 @@ const estilos = StyleSheet.create({
   textoBotaoPrimario: { color: "#fff", fontWeight: "600" },
   vazio: { color: "#888", fontStyle: "italic", marginTop: 12 },
   linhaVideo: {
-    flexDirection: "row",
-    justifyContent: "space-between",
     paddingVertical: 10,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: "#ddd",
-    gap: 8,
   },
+  linhaPrincipal: { flexDirection: "row", justifyContent: "space-between", gap: 8 },
   nomeVideo: { flex: 1 },
   status: { color: "#555" },
+  diagnostico: { color: "#999", fontSize: 12, marginTop: 2 },
 });

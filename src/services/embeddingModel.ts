@@ -1,10 +1,12 @@
 import { loadTensorflowModel, TensorflowModel } from "react-native-fast-tflite";
 import * as ImageManipulator from "expo-image-manipulator";
 import { Asset } from "expo-asset";
+import { Image } from "react-native";
 import { toByteArray } from "base64-js";
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const jpeg = require("jpeg-js");
 import { CaixaRosto } from "./faceDetector";
+import { aplicarMargem } from "../utils/caixaRosto";
 
 // Tamanho de entrada esperado pelo modelo de embedding (padrão MobileFaceNet/FaceNet: 112x112).
 const TAMANHO_ENTRADA = 112;
@@ -40,17 +42,27 @@ async function carregarModelo(): Promise<TensorflowModel> {
 }
 
 /**
- * Recorta o rosto indicado pela caixa delimitadora, redimensiona para o tamanho
- * esperado pelo modelo e calcula o embedding: um vetor numérico que representa
- * a identidade daquele rosto, comparável via distância de cosseno.
+ * Recorta o rosto indicado pela caixa delimitadora (com uma margem extra ao
+ * redor, o que o MobileFaceNet costuma preferir a um recorte justo), redimensiona
+ * para o tamanho esperado pelo modelo e calcula o embedding: um vetor numérico
+ * que representa a identidade daquele rosto, comparável via distância euclidiana.
  */
 export async function calcularEmbedding(uriImagem: string, caixa: CaixaRosto): Promise<number[]> {
   const modelo = await carregarModelo();
+  const { largura: imgLargura, altura: imgAltura } = await obterDimensoesImagem(uriImagem);
+  const caixaComMargem = aplicarMargem(caixa, imgLargura, imgAltura);
 
   const recorte = await ImageManipulator.manipulateAsync(
     uriImagem,
     [
-      { crop: { originX: caixa.x, originY: caixa.y, width: caixa.largura, height: caixa.altura } },
+      {
+        crop: {
+          originX: caixaComMargem.x,
+          originY: caixaComMargem.y,
+          width: caixaComMargem.largura,
+          height: caixaComMargem.altura,
+        },
+      },
       { resize: { width: TAMANHO_ENTRADA, height: TAMANHO_ENTRADA } },
     ],
     { base64: true, format: ImageManipulator.SaveFormat.JPEG, compress: 0.95 }
@@ -64,6 +76,17 @@ export async function calcularEmbedding(uriImagem: string, caixa: CaixaRosto): P
   const saidas = modelo.runSync([entrada.buffer as ArrayBuffer]);
   // A primeira (e única) saída do modelo é o vetor de embedding (ex.: 192 floats).
   return Array.from(new Float32Array(saidas[0]));
+}
+
+/** Dimensões da imagem original — necessárias pra aplicar a margem do recorte com segurança. */
+function obterDimensoesImagem(uri: string): Promise<{ largura: number; altura: number }> {
+  return new Promise((resolve, reject) => {
+    Image.getSize(
+      uri,
+      (largura, altura) => resolve({ largura, altura }),
+      (erro) => reject(erro)
+    );
+  });
 }
 
 /**

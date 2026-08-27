@@ -34,3 +34,18 @@ export function decidirAlbuns(
     .sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"))
     .map((c) => sanitizarNomeAlbum(c.nome));
 }
+
+/**
+ * Descreve, em uma frase curta, o que foi encontrado ao processar um vídeo —
+ * mesmo quando nenhuma correspondência passou no limiar. Serve pra diagnosticar
+ * se o problema é "não detectou nenhum rosto" ou "detectou, mas achou parecido
+ * demais/diferente demais de todo mundo cadastrado".
+ */
+export function descreverDiagnostico(correspondencias: Correspondencia[]): string {
+  if (correspondencias.length === 0) {
+    return "nenhum rosto detectado nos frames analisados";
+  }
+
+  const maisProximo = correspondencias.reduce((a, b) => (a.distancia <= b.distancia ? a : b));
+  return `mais parecido: ${maisProximo.nome} (distância ${maisProximo.distancia.toFixed(2)})`;
+}

@@ -1,4 +1,4 @@
-import { decidirAlbuns } from "../src/services/decisao";
+import { decidirAlbuns, descreverDiagnostico } from "../src/services/decisao";
 import { ConfiguracaoReconhecimento, Correspondencia } from "../src/types";
 
 function config(overrides: Partial<ConfiguracaoReconhecimento> = {}): ConfiguracaoReconhecimento {
@@ -53,5 +53,19 @@ describe("decidirAlbuns", () => {
   it("sanitiza o nome do cliente para uso como nome de álbum", () => {
     const correspondencias: Correspondencia[] = [{ clienteId: 1, nome: "Cliente/Vip", distancia: 0.1 }];
     expect(decidirAlbuns(correspondencias, config())).toEqual(["Cliente_Vip"]);
+  });
+});
+
+describe("descreverDiagnostico", () => {
+  it("indica que nenhum rosto foi detectado quando a lista está vazia", () => {
+    expect(descreverDiagnostico([])).toBe("nenhum rosto detectado nos frames analisados");
+  });
+
+  it("mostra o cliente e a distância mais próxima encontrada, mesmo acima do limiar", () => {
+    const correspondencias: Correspondencia[] = [
+      { clienteId: 1, nome: "Ana", distancia: 0.9 },
+      { clienteId: 2, nome: "Joao", distancia: 1.4 },
+    ];
+    expect(descreverDiagnostico(correspondencias)).toBe("mais parecido: Ana (distância 0.90)");
   });
 });
