@@ -10,7 +10,8 @@
       "policy": "appVersion"
     },
     "updates": {
-      "url": "https://u.expo.dev/0ded84c0-9796-4094-9f49-4a371a6f4a1d"
+      "url": "https://u.expo.dev/0ded84c0-9796-4094-9f49-4a371a6f4a1d",
+      "fallbackToCacheTimeout": 15000
     },
     "ios": {
       "supportsTablet": true,
