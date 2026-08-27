@@ -23,7 +23,6 @@ export default function App() {
       <View style={estilos.cabecalho}>
         <Text style={estilos.titulo}>Reconec</Text>
       </View>
-      <View style={estilos.conteudo}>{aba === "clientes" ? <ClientesScreen /> : <ProcessarScreen />}</View>
       <View style={estilos.tabs}>
         <TouchableOpacity style={estilos.tab} onPress={() => setAba("clientes")}>
           <Text style={[estilos.textoTab, aba === "clientes" && estilos.textoTabAtiva]}>Clientes</Text>
@@ -34,6 +33,7 @@ export default function App() {
           </Text>
         </TouchableOpacity>
       </View>
+      <View style={estilos.conteudo}>{aba === "clientes" ? <ClientesScreen /> : <ProcessarScreen />}</View>
     </SafeAreaView>
   );
 }
@@ -51,10 +51,8 @@ const estilos = StyleSheet.create({
   conteudo: { flex: 1 },
   tabs: {
     flexDirection: "row",
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: "#ddd",
-    // Mesma lógica no rodapé: afasta as abas da barra de gestos/botões do Android.
-    paddingBottom: Platform.OS === "android" ? 16 : 0,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "#ddd",
   },
   tab: { flex: 1, paddingVertical: 12, alignItems: "center" },
   textoTab: { color: "#888", fontWeight: "500" },
