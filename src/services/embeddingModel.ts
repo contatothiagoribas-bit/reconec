@@ -1,5 +1,6 @@
 import { loadTensorflowModel, TensorflowModel } from "react-native-fast-tflite";
 import * as ImageManipulator from "expo-image-manipulator";
+import { Asset } from "expo-asset";
 import { toByteArray } from "base64-js";
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const jpeg = require("jpeg-js");
@@ -14,12 +15,26 @@ let modeloPromise: Promise<TensorflowModel> | null = null;
  * Carrega (uma única vez) o modelo TFLite de embedding facial (MobileFaceNet),
  * já incluído em `assets/models/mobilefacenet.tflite` — origem e licença
  * (BSD-3-Clause) documentadas em `assets/models/README.md`.
+ *
+ * Resolve o asset com `expo-asset` (em vez de passar o `require(...)` direto pro
+ * `loadTensorflowModel`) para obter uma URI `file://` de verdade: a versão
+ * publicada do react-native-fast-tflite (3.0.1) tem um bug no carregador nativo
+ * Android que quebra ao receber o nome de recurso `res/raw` que o `require(...)`
+ * de um asset não-imagem resolve em build de release (`no protocol: ...`,
+ * https://github.com/mrousavy/react-native-fast-tflite — corrigido no branch
+ * `main`, mas ainda não publicado no npm). Uma URI `file://` explícita passa
+ * pelo caminho de carregamento que já funciona hoje.
  */
-function carregarModelo(): Promise<TensorflowModel> {
+async function carregarModelo(): Promise<TensorflowModel> {
   if (!modeloPromise) {
-    // Delegate padrão (CPU) — veja a doc do react-native-fast-tflite para usar
-    // aceleração por GPU ("core-ml" no iOS, "android-gpu"/"nnapi" no Android).
-    modeloPromise = loadTensorflowModel(require("../../assets/models/mobilefacenet.tflite"), []);
+    modeloPromise = (async () => {
+      const asset = Asset.fromModule(require("../../assets/models/mobilefacenet.tflite"));
+      await asset.downloadAsync();
+      const uri = asset.localUri ?? asset.uri;
+      // Delegate padrão (CPU) — veja a doc do react-native-fast-tflite para usar
+      // aceleração por GPU ("core-ml" no iOS, "android-gpu"/"nnapi" no Android).
+      return loadTensorflowModel({ url: uri }, []);
+    })();
   }
   return modeloPromise;
 }
