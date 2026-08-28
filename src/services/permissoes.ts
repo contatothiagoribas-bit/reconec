@@ -12,3 +12,9 @@ export async function garantirPermissaoCamera(): Promise<boolean> {
   const { status } = await ImagePicker.requestCameraPermissionsAsync();
   return status === "granted";
 }
+
+/** Permissão de leitura da galeria, usada pelo seletor de vídeos a processar. */
+export async function garantirPermissaoGaleria(): Promise<boolean> {
+  const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+  return status === "granted";
+}

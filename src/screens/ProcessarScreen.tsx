@@ -2,11 +2,11 @@ import React, { useEffect, useState } from "react";
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert } from "react-native";
 import { VideoAsset, Cliente, ResultadoProcessamento, ConfiguracaoReconhecimento } from "../types";
 import { listarClientes } from "../db/clientesRepository";
-import { listarVideosDoDispositivo } from "../services/biblioteca";
+import { selecionarVideosDoDispositivo } from "../services/biblioteca";
 import { processarVideo } from "../services/videoProcessor";
 import { organizarVideo } from "../services/organizador";
 import { descreverDiagnostico } from "../services/decisao";
-import { garantirPermissaoMidia } from "../services/permissoes";
+import { garantirPermissaoGaleria, garantirPermissaoMidia } from "../services/permissoes";
 
 const CONFIG_PADRAO: ConfiguracaoReconhecimento = {
   // 0.5 = mesmo limiar validado no app de referência do modelo (distância euclidiana).
@@ -33,16 +33,18 @@ export default function ProcessarScreen() {
     listarClientes().then(setClientes);
   }, []);
 
-  async function buscarVideos() {
+  async function selecionarVideos() {
     setCarregandoVideos(true);
     try {
-      const permitido = await garantirPermissaoMidia();
+      const permitido = await garantirPermissaoGaleria();
       if (!permitido) {
-        Alert.alert("Permissão necessária", "Autorize o acesso à galeria para ler os vídeos.");
+        Alert.alert("Permissão necessária", "Autorize o acesso à galeria para escolher os vídeos.");
         return;
       }
-      const videos = await listarVideosDoDispositivo();
-      setItens(videos.map((video) => ({ video, status: "pendente" })));
+      const videos = await selecionarVideosDoDispositivo();
+      if (videos.length > 0) {
+        setItens(videos.map((video) => ({ video, status: "pendente" })));
+      }
     } finally {
       setCarregandoVideos(false);
     }
@@ -51,6 +53,13 @@ export default function ProcessarScreen() {
   async function processarTodos() {
     if (clientes.length === 0) {
       Alert.alert("Nenhum cliente cadastrado", "Cadastre ao menos um cliente antes de processar vídeos.");
+      return;
+    }
+    // Permissão separada da usada no seletor: essa aqui é a que permite criar
+    // os álbuns por cliente na Galeria (escrita), não só ler os vídeos.
+    const permitido = await garantirPermissaoMidia();
+    if (!permitido) {
+      Alert.alert("Permissão necessária", "Autorize o acesso à galeria para criar os álbuns organizados.");
       return;
     }
     setProcessando(true);
@@ -91,14 +100,18 @@ export default function ProcessarScreen() {
     <View style={estilos.container}>
       <Text style={estilos.titulo}>Organizar vídeos por cliente</Text>
       <Text style={estilos.ajuda}>
-        {clientes.length} cliente(s) cadastrado(s). Busque os vídeos do celular e depois toque em
-        "Processar" para separá-los em álbuns com o nome de cada cliente reconhecido.
+        {clientes.length} cliente(s) cadastrado(s). Escolha os vídeos que quer analisar e depois
+        toque em "Processar" para separá-los em álbuns com o nome de cada cliente reconhecido.
       </Text>
 
       <View style={estilos.linhaBotoes}>
-        <TouchableOpacity style={estilos.botaoSecundario} onPress={buscarVideos} disabled={carregandoVideos}>
+        <TouchableOpacity
+          style={estilos.botaoSecundario}
+          onPress={selecionarVideos}
+          disabled={carregandoVideos}
+        >
           <Text style={estilos.textoBotaoSecundario}>
-            {carregandoVideos ? "Buscando..." : "Buscar vídeos"}
+            {carregandoVideos ? "Abrindo..." : "Selecionar vídeos"}
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
@@ -114,7 +127,7 @@ export default function ProcessarScreen() {
         data={itens}
         keyExtractor={(item) => item.video.id}
         ListEmptyComponent={
-          <Text style={estilos.vazio}>Nenhum vídeo carregado. Toque em "Buscar vídeos".</Text>
+          <Text style={estilos.vazio}>Nenhum vídeo selecionado. Toque em "Selecionar vídeos".</Text>
         }
         renderItem={({ item }) => (
           <View style={estilos.linhaVideo}>

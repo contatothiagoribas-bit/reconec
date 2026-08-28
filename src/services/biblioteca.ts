@@ -1,4 +1,5 @@
 import { Query, AssetField, MediaType, Asset } from "expo-media-library";
+import * as ImagePicker from "expo-image-picker";
 import { VideoAsset } from "../types";
 
 /** Lista os vídeos do dispositivo disponíveis para processar (do mais recente ao mais antigo). */
@@ -10,6 +11,29 @@ export async function listarVideosDoDispositivo(limite = 100): Promise<VideoAsse
     .exe();
 
   return Promise.all(assets.map(paraVideoAsset));
+}
+
+/**
+ * Abre o seletor nativo de mídia da galeria pra o usuário escolher manualmente
+ * quais vídeos processar, em vez de listar todos os vídeos do aparelho. Retorna
+ * uma lista vazia se o usuário cancelar a seleção.
+ */
+export async function selecionarVideosDoDispositivo(): Promise<VideoAsset[]> {
+  const resultado = await ImagePicker.launchImageLibraryAsync({
+    mediaTypes: ["videos"],
+    allowsMultipleSelection: true,
+  });
+
+  if (resultado.canceled) {
+    return [];
+  }
+
+  return resultado.assets.map((asset, indice) => ({
+    id: asset.assetId ?? `${asset.uri}-${indice}`,
+    uri: asset.uri,
+    nomeArquivo: asset.fileName ?? asset.uri.split("/").pop() ?? `video-${indice + 1}`,
+    duracaoMs: asset.duration ?? 0,
+  }));
 }
 
 async function paraVideoAsset(asset: Asset): Promise<VideoAsset> {
