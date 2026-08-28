@@ -20,6 +20,7 @@ import { norma, encontrarMaisProximo } from "../utils/vectorMath";
 import { reconhecerRostos } from "../services/faceRecognition";
 import { detectarRostos, CaixaRosto } from "../services/faceDetector";
 import { gerarMiniaturaRosto } from "../services/miniaturaRosto";
+import { copiarParaArmazenamentoPermanente } from "../services/armazenamentoPermanente";
 
 interface OpcaoRosto {
   caixa: CaixaRosto;
@@ -64,7 +65,19 @@ export default function ClientesScreen() {
    * do embedding podia acabar pegando o rosto errado (o de maior destaque na
    * foto, não necessariamente o do cliente sendo cadastrado).
    */
-  async function processarFotoAdicionada(uri: string): Promise<void> {
+  async function processarFotoAdicionada(uriOriginal: string): Promise<void> {
+    // Copia pra um diretório permanente do app ANTES de mais nada: a URI que
+    // vem do seletor costuma apontar pra um cache temporário que o Android
+    // pode apagar sozinho (ex.: sob pouco espaço livre) — sem essa cópia, a
+    // miniatura do cliente cadastrado "sumia" ao reabrir o app.
+    let uri = uriOriginal;
+    try {
+      uri = await copiarParaArmazenamentoPermanente(uriOriginal);
+    } catch {
+      // se a cópia falhar, segue com a URI original — mais seguro tentar
+      // usar mesmo assim do que descartar a foto inteira por causa disso.
+    }
+
     let caixas: CaixaRosto[] = [];
     try {
       caixas = await detectarRostos(uri);

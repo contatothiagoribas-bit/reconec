@@ -69,7 +69,25 @@ export async function organizarVideo(
   config: ConfiguracaoReconhecimento
 ): Promise<ResultadoOrganizacao> {
   const albuns = decidirAlbuns(resultado.clientesReconhecidos, config);
-  const asset = await Asset.create(resultado.video.uri);
+
+  let asset: Asset;
+  try {
+    asset = await Asset.create(resultado.video.uri);
+  } catch (erro) {
+    const mensagem = erro instanceof Error ? erro.message : String(erro);
+    // ENOENT/FileNotFoundException aqui costuma ser o arquivo temporário do
+    // vídeo (cache do seletor da galeria) tendo sido apagado pelo próprio
+    // Android nesse meio-tempo — comum sob pouco espaço livre no aparelho.
+    // Os frames já tinham sido lidos com sucesso antes disso (senão nem
+    // teria chegado aqui) — o problema é só nessa etapa final.
+    if (/ENOENT|FileNotFoundException|no such file/i.test(mensagem)) {
+      throw new Error(
+        "O arquivo temporário desse vídeo não existe mais (provavelmente removido pelo sistema " +
+          "por falta de espaço) — selecione esse vídeo de novo pra tentar organizar."
+      );
+    }
+    throw erro;
+  }
 
   for (const nomeAlbum of albuns) {
     const { album, criadoAgora } = await obterOuCriarAlbum(nomeAlbum, asset);
