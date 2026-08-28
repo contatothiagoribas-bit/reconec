@@ -26,6 +26,7 @@ export default function ClientesScreen() {
   const [fotos, setFotos] = useState<string[]>([]);
   const [testando, setTestando] = useState(false);
   const [resultadoTeste, setResultadoTeste] = useState<string | null>(null);
+  const [rostosTeste, setRostosTeste] = useState<{ recorteUri?: string; texto: string }[]>([]);
 
   const carregar = useCallback(async () => {
     setCarregando(true);
@@ -101,18 +102,21 @@ export default function ClientesScreen() {
 
     setTestando(true);
     setResultadoTeste(null);
+    setRostosTeste([]);
     try {
       const rostos = await reconhecerRostos(resultado.assets[0].uri);
       if (rostos.length === 0) {
         setResultadoTeste("Nenhum rosto detectado nessa foto.");
         return;
       }
-      const linhas = rostos.map((rosto, indice) => {
+      const itens = rostos.map((rosto, indice) => {
         const proximo = clientes.length > 0 ? encontrarMaisProximo(rosto.embedding, clientes) : null;
-        if (!proximo) return `Rosto ${indice + 1}: nenhum cliente cadastrado pra comparar.`;
-        return `Rosto ${indice + 1}: mais parecido com ${proximo.candidato.nome} — distância ${proximo.distancia.toFixed(2)}`;
+        const texto = !proximo
+          ? `Rosto ${indice + 1}: nenhum cliente cadastrado pra comparar.`
+          : `Rosto ${indice + 1}: mais parecido com ${proximo.candidato.nome} — distância ${proximo.distancia.toFixed(2)}`;
+        return { recorteUri: rosto.recorteUri, texto };
       });
-      setResultadoTeste(linhas.join("\n"));
+      setRostosTeste(itens);
     } catch (erro) {
       setResultadoTeste(`Erro: ${erro instanceof Error ? erro.message : String(erro)}`);
     } finally {
@@ -200,7 +204,9 @@ export default function ClientesScreen() {
               <Text style={estilos.ajudaTeste}>
                 Escolha uma foto (não precisa ser um vídeo) pra ver rapidinho a distância calculada
                 até cada cliente cadastrado — útil pra descobrir se o problema é o cálculo em si, ou
-                só achar um bom frame dentro de um vídeo específico.
+                só achar um bom frame dentro de um vídeo específico. A miniatura mostra exatamente o
+                recorte de rosto que foi usado pra calcular cada distância — confira se é mesmo o
+                rosto da pessoa certa antes de desconfiar do número.
               </Text>
               <TouchableOpacity
                 style={[estilos.botaoSecundario, testando && estilos.botaoDesabilitado]}
@@ -212,6 +218,12 @@ export default function ClientesScreen() {
                 </Text>
               </TouchableOpacity>
               {resultadoTeste && <Text style={estilos.resultadoTeste}>{resultadoTeste}</Text>}
+              {rostosTeste.map((item, indice) => (
+                <View key={indice} style={estilos.linhaResultadoRosto}>
+                  {item.recorteUri && <Image source={{ uri: item.recorteUri }} style={estilos.miniaturaRecorte} />}
+                  <Text style={estilos.textoResultadoRosto}>{item.texto}</Text>
+                </View>
+              ))}
             </View>
           }
         />
@@ -277,4 +289,15 @@ const estilos = StyleSheet.create({
     color: "#333",
     fontSize: 13,
   },
+  linhaResultadoRosto: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginTop: 8,
+    padding: 8,
+    backgroundColor: "#f2f2f2",
+    borderRadius: 8,
+  },
+  miniaturaRecorte: { width: 56, height: 56, borderRadius: 8, backgroundColor: "#ddd" },
+  textoResultadoRosto: { flex: 1, color: "#333", fontSize: 13 },
 });

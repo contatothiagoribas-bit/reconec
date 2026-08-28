@@ -41,13 +41,19 @@ async function carregarModelo(): Promise<TensorflowModel> {
   return modeloPromise;
 }
 
+export interface EmbeddingCalculado {
+  embedding: number[];
+  /** URI do recorte 112x112 realmente usado pra calcular o embedding — só pra diagnóstico visual. */
+  recorteUri: string;
+}
+
 /**
  * Recorta o rosto indicado pela caixa delimitadora (com uma margem extra ao
  * redor, o que o MobileFaceNet costuma preferir a um recorte justo), redimensiona
  * para o tamanho esperado pelo modelo e calcula o embedding: um vetor numérico
  * que representa a identidade daquele rosto, comparável via distância euclidiana.
  */
-export async function calcularEmbedding(uriImagem: string, caixa: CaixaRosto): Promise<number[]> {
+export async function calcularEmbedding(uriImagem: string, caixa: CaixaRosto): Promise<EmbeddingCalculado> {
   const modelo = await carregarModelo();
   const caixaComMargem = await calcularCaixaComMargemSegura(uriImagem, caixa);
 
@@ -86,7 +92,8 @@ export async function calcularEmbedding(uriImagem: string, caixa: CaixaRosto): P
   const entrada = decodificarJpegParaTensor(recorte.base64, TAMANHO_ENTRADA);
   const saidas = modelo.runSync([entrada.buffer as ArrayBuffer]);
   // A primeira (e única) saída do modelo é o vetor de embedding (ex.: 192 floats).
-  return Array.from(new Float32Array(saidas[0]));
+  const embedding = Array.from(new Float32Array(saidas[0]));
+  return { embedding, recorteUri: recorte.uri };
 }
 
 /**
