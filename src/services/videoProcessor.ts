@@ -1,5 +1,6 @@
 import { MediaToolkit } from "react-native-media-toolkit";
 import * as VideoThumbnails from "expo-video-thumbnails";
+import { File } from "expo-file-system";
 import {
   Cliente,
   Correspondencia,
@@ -12,6 +13,12 @@ import { instantesValidos } from "../utils/amostragemVideo";
 
 export type CallbackProgresso = (framesAnalisados: number, totalFrames: number) => void;
 
+// Largura máxima do frame extraído — vídeo de drone costuma ser 4K, e não
+// precisa dessa resolução toda pra detectar/reconhecer rosto (que depois é
+// recortado e reduzido a 112x112 de qualquer forma). Isso reduz bastante o
+// tamanho de cada arquivo temporário gerado por frame analisado.
+const LARGURA_MAXIMA_FRAME = 1920;
+
 /**
  * Extrai um frame do vídeo num instante específico. Usa o `react-native-media-toolkit`
  * (Jetpack Media3/AVFoundation) como principal — bem mais robusto com codecs
@@ -21,15 +28,38 @@ export type CallbackProgresso = (framesAnalisados: number, totalFrames: number) 
  */
 async function extrairFrame(uri: string, timeMs: number): Promise<string> {
   try {
-    const resultado = await MediaToolkit.getThumbnail(uri, { timeMs, quality: 50 });
+    const resultado = await MediaToolkit.getThumbnail(uri, {
+      timeMs,
+      quality: 50,
+      maxWidth: LARGURA_MAXIMA_FRAME,
+    });
     return resultado.uri;
   } catch (erroPrincipal) {
     try {
+      // expo-video-thumbnails não tem opção de largura máxima — só usada como
+      // reserva num caso raro, então o arquivo maior aqui não é o normal.
       const resultado = await VideoThumbnails.getThumbnailAsync(uri, { time: timeMs, quality: 0.5 });
       return resultado.uri;
     } catch {
       throw erroPrincipal;
     }
+  }
+}
+
+/**
+ * Apaga um arquivo temporário (frame extraído, recorte de rosto) — best-effort,
+ * sem interromper o processamento se a limpeza falhar por qualquer motivo.
+ * Sem isso, analisar muitos vídeos (até 60 frames cada) enche o armazenamento
+ * do celular de arquivos temporários que nunca são reaproveitados.
+ */
+function apagarArquivoTemporario(uri: string): void {
+  try {
+    const arquivo = new File(uri);
+    if (arquivo.exists) {
+      arquivo.delete();
+    }
+  } catch {
+    // best-effort — não deve interromper o processamento
   }
 }
 
@@ -61,8 +91,9 @@ export async function processarVideo(
   let ultimoErro: unknown = null;
 
   for (let i = 0; i < instantes.length; i++) {
+    let uriFrame: string | null = null;
     try {
-      const uriFrame = await extrairFrame(video.uri, instantes[i]);
+      uriFrame = await extrairFrame(video.uri, instantes[i]);
       framesLidosComSucesso++;
 
       const rostos = await reconhecerRostos(uriFrame, "fast");
@@ -79,12 +110,22 @@ export async function processarVideo(
             clientesJaConfirmados.add(proximo.candidato.id);
           }
         }
+        // Recorte 112x112 usado só pra calcular o embedding — não precisa
+        // mais dele depois disso (mesma lógica: evitar acumular arquivo
+        // temporário à toa por frame analisado).
+        if (rosto.recorteUri) {
+          apagarArquivoTemporario(rosto.recorteUri);
+        }
       }
     } catch (erro) {
       // Um frame ruim isolado (ex.: recorte degenerado num instante específico)
       // não deve derrubar a análise do vídeo inteiro — só pula esse frame, mas
       // guarda o erro pra reportar caso NENHUM frame do vídeo dê certo.
       ultimoErro = erro;
+    } finally {
+      if (uriFrame) {
+        apagarArquivoTemporario(uriFrame);
+      }
     }
     onProgresso?.(i + 1, instantes.length);
 
