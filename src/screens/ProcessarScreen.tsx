@@ -63,6 +63,14 @@ export default function ProcessarScreen() {
           .map((video): ItemProcessamento => ({ video, status: "pendente" }));
         return [...atual, ...novos];
       });
+    } catch (erro) {
+      // Selecionar muitos vídeos grandes de uma vez pode derrubar o seletor
+      // nativo da galeria (falta de memória etc.) — sem isso, o app só
+      // silenciosamente não adicionava nada, sem nenhuma pista do motivo.
+      Alert.alert(
+        "Não foi possível abrir os vídeos selecionados",
+        `${erro instanceof Error ? erro.message : String(erro)} — tente selecionar menos vídeos por vez.`
+      );
     } finally {
       setCarregandoVideos(false);
     }
@@ -170,10 +178,11 @@ export default function ProcessarScreen() {
     <View style={estilos.container}>
       <Text style={estilos.titulo}>Organizar vídeos por cliente</Text>
       <Text style={estilos.ajuda}>
-        {clientes.length} cliente(s) cadastrado(s). {itens.length} vídeo(s) selecionado(s). Toque em
-        "Selecionar vídeos" quantas vezes precisar pra ir juntando os vídeos. "Testar" mostra o
-        reconhecimento sem mover nada na Galeria — dá pra rodar quantas vezes precisar nos mesmos
-        vídeos. "Processar" faz valer, movendo os vídeos pros álbuns.
+        {clientes.length} cliente(s) cadastrado(s). {itens.length} vídeo(s) selecionado(s). Escolha
+        no máximo 10 vídeos por vez (vídeo de drone é pesado, muitos de uma vez podem travar a
+        galeria) — toque em "Selecionar vídeos" quantas vezes precisar pra ir juntando mais.
+        "Testar" mostra o reconhecimento sem mover nada na Galeria — dá pra rodar quantas vezes
+        precisar nos mesmos vídeos. "Processar" faz valer, movendo os vídeos pros álbuns.
       </Text>
 
       <View style={estilos.linhaBotoes}>

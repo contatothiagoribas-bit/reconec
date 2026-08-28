@@ -13,6 +13,14 @@ export async function listarVideosDoDispositivo(limite = 100): Promise<VideoAsse
   return Promise.all(assets.map(paraVideoAsset));
 }
 
+// Limite de vídeos por ida à galeria. Vídeo de drone costuma ser um arquivo
+// grande (4K) — pedir pro seletor nativo carregar muitos de uma vez pode
+// sobrecarregar a galeria do aparelho (trava ou fecha sem selecionar nada).
+// A tela de processar já permite repetir a seleção várias vezes, acumulando
+// os vídeos, então esse limite não reduz quantos vídeos dá pra processar no
+// total — só quantos de uma vez só.
+const LIMITE_VIDEOS_POR_SELECAO = 10;
+
 /**
  * Abre o seletor nativo de mídia da galeria pra o usuário escolher manualmente
  * quais vídeos processar, em vez de listar todos os vídeos do aparelho. Retorna
@@ -22,6 +30,7 @@ export async function selecionarVideosDoDispositivo(): Promise<VideoAsset[]> {
   const resultado = await ImagePicker.launchImageLibraryAsync({
     mediaTypes: ["videos"],
     allowsMultipleSelection: true,
+    selectionLimit: LIMITE_VIDEOS_POR_SELECAO,
   });
 
   if (resultado.canceled) {
