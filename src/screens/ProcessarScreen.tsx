@@ -9,8 +9,13 @@ import { descreverDiagnostico } from "../services/decisao";
 import { garantirPermissaoGaleria, garantirPermissaoMidia } from "../services/permissoes";
 
 const CONFIG_PADRAO: ConfiguracaoReconhecimento = {
-  // 0.5 = mesmo limiar validado no app de referência do modelo (distância euclidiana).
-  limiarDistancia: 0.5,
+  // 0.5 era o limiar do app de referência do modelo, mas foi calibrado pra um
+  // alinhamento de rosto completo (5 pontos); com o alinhamento pelos 2 olhos
+  // que este app usa, matches genuínos e nítidos testados na prática deram
+  // 0.65-0.84 de distância — 0.5 rejeitaria até esses. 0.9 mantém folga acima
+  // desses matches confirmados e abaixo dos casos de rosto pequeno/borrado/de
+  // perfil observados (1.15+), que continuam sendo rejeitados como deveriam.
+  limiarDistancia: 0.9,
   albumNaoReconhecidos: "Nao_Reconhecidos",
   estrategia: "todas_correspondencias",
 };
