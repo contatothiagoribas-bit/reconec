@@ -3,8 +3,11 @@ import { calcularEmbedding } from "./embeddingModel";
 import { RostoDetectado } from "../types";
 
 /** Detecta todos os rostos de uma imagem e calcula o embedding de cada um. */
-export async function reconhecerRostos(uriImagem: string): Promise<RostoDetectado[]> {
-  const caixas = await detectarRostos(uriImagem);
+export async function reconhecerRostos(
+  uriImagem: string,
+  performanceMode: "fast" | "accurate" = "accurate"
+): Promise<RostoDetectado[]> {
+  const caixas = await detectarRostos(uriImagem, performanceMode);
   const rostos: RostoDetectado[] = [];
   for (const caixa of caixas) {
     const { embedding, recorteUri, alinhadoPorOlhos } = await calcularEmbedding(uriImagem, caixa);

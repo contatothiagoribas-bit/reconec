@@ -97,7 +97,8 @@ export default function ProcessarScreen() {
                   idx === i ? { ...item, progresso: { atual: atualFrame, total: totalFrames } } : item
                 )
               );
-            }
+            },
+            CONFIG_PADRAO.limiarDistancia
           );
           if (resultado.status === "erro") {
             throw new Error(resultado.mensagemErro ?? "Não foi possível processar o vídeo.");

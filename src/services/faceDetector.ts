@@ -26,10 +26,18 @@ export interface CaixaRosto {
  * usando o detector on-device do ML Kit (Android/iOS, sem depender de internet).
  * Retorna as caixas delimitadoras encontradas, em pixels da imagem original,
  * junto com a posição dos olhos quando disponível (ver `CaixaRosto.olhoEsquerdo`).
+ *
+ * `performanceMode`: "accurate" (padrão, usado no cadastro e no teste com foto,
+ * onde só roda uma vez) é bem mais lento que "fast" — ao analisar um vídeo,
+ * onde essa detecção roda dezenas de vezes (um frame por instante amostrado),
+ * essa diferença de velocidade importa bastante.
  */
-export async function detectarRostos(uriImagem: string): Promise<CaixaRosto[]> {
+export async function detectarRostos(
+  uriImagem: string,
+  performanceMode: "fast" | "accurate" = "accurate"
+): Promise<CaixaRosto[]> {
   const faces = await FaceDetection.detect(uriImagem, {
-    performanceMode: "accurate",
+    performanceMode,
     // "all" pra conseguir a posição dos olhos e alinhar o recorte por eles
     // (ver calcularCaixaAlinhada) — sem isso, o recorte usa só a caixa bruta
     // do detector, que é mais sensível a pose/acessórios (ex.: bandana).

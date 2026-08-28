@@ -14,7 +14,10 @@ async function obterOuCriarAlbum(
   if (existente) {
     return { album: existente, criadoAgora: false };
   }
-  const novo = await Album.create(nome, [assetInicial], false);
+  // `moveAssets: true` MOVE o vídeo pra dentro do álbum (em vez de copiar) —
+  // além de combinar com a ideia de "separar" os vídeos, evita duplicar
+  // arquivos de vídeo de drone (grandes) na galeria.
+  const novo = await Album.create(nome, [assetInicial], true);
   return { album: novo, criadoAgora: true };
 }
 
@@ -22,6 +25,12 @@ async function obterOuCriarAlbum(
  * Coloca o vídeo já processado no(s) álbum(ns) do(s) cliente(s) reconhecido(s) nele
  * (ou no álbum de "não reconhecidos"), de acordo com a configuração escolhida.
  * Retorna os nomes dos álbuns em que o vídeo foi colocado.
+ *
+ * NOTA: no Android, um vídeo só pode estar fisicamente numa pasta por vez —
+ * então se a estratégia "todas_correspondencias" reconhecer mais de um
+ * cliente no mesmo vídeo, ele acaba ficando só no ÚLTIMO álbum processado
+ * (cada `add` move o arquivo de fato, tirando ele do álbum anterior). Isso é
+ * uma limitação do sistema de arquivos do Android, não desta função.
  */
 export async function organizarVideo(
   resultado: ResultadoProcessamento,
@@ -37,6 +46,18 @@ export async function organizarVideo(
     if (!criadoAgora) {
       await album.add(asset);
     }
+  }
+
+  // Confere que o vídeo realmente foi parar no(s) álbum(ns) esperado(s) —
+  // sem isso, uma falha silenciosa da API nativa apareceria como sucesso.
+  const albunsDoAsset = await asset.getAlbums();
+  const titulosDoAsset = await Promise.all(albunsDoAsset.map((album) => album.getTitle()));
+  const nenhumAlbumEsperadoConfirmado = !albuns.some((nomeAlbum) => titulosDoAsset.includes(nomeAlbum));
+  if (nenhumAlbumEsperadoConfirmado) {
+    throw new Error(
+      `O vídeo foi processado, mas não foi possível confirmar que ele entrou no álbum "${albuns.join(", ")}" — ` +
+        "confira manualmente na Galeria."
+    );
   }
 
   return albuns;
