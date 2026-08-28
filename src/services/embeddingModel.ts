@@ -11,6 +11,10 @@ import { aplicarMargem, calcularCaixaAlinhada } from "../utils/caixaRosto";
 // Tamanho de entrada esperado pelo modelo de embedding (padrão MobileFaceNet/FaceNet: 112x112).
 const TAMANHO_ENTRADA = 112;
 
+// Abaixo dessa área (em pixels do recorte final), o recorte é considerado
+// pequeno/degenerado demais pra gerar um embedding confiável.
+const AREA_MINIMA_ACEITAVEL = 20 * 20;
+
 let modeloPromise: Promise<TensorflowModel> | null = null;
 
 /**
@@ -61,14 +65,13 @@ export interface EmbeddingCalculado {
  */
 export async function calcularEmbedding(uriImagem: string, caixa: CaixaRosto): Promise<EmbeddingCalculado> {
   const modelo = await carregarModelo();
-  const caixaComMargem = await calcularCaixaComMargemSegura(uriImagem, caixa);
+  const { caixa: caixaComMargem, alinhadoPorOlhos } = await calcularCaixaComMargemSegura(uriImagem, caixa);
 
   // Guarda contra um recorte degenerado (praticamente 1x1 px esticado pra
   // 112x112): isso não dá erro em lugar nenhum do pipeline, só produz um
   // embedding sem nenhuma informação do rosto — e todo mundo passa a parecer
   // igualmente "diferente" de todo mundo. Prefere falhar de forma visível.
-  const AREA_MINIMA_AGEITAVEL = 20 * 20;
-  if (caixaComMargem.largura * caixaComMargem.altura < AREA_MINIMA_AGEITAVEL) {
+  if (caixaComMargem.largura * caixaComMargem.altura < AREA_MINIMA_ACEITAVEL) {
     throw new Error(
       `Recorte do rosto ficou pequeno demais (${caixaComMargem.largura}x${caixaComMargem.altura}px) ` +
         "— não deu pra calcular um embedding confiável."
@@ -99,8 +102,12 @@ export async function calcularEmbedding(uriImagem: string, caixa: CaixaRosto): P
   const saidas = modelo.runSync([entrada.buffer as ArrayBuffer]);
   // A primeira (e única) saída do modelo é o vetor de embedding (ex.: 192 floats).
   const embedding = Array.from(new Float32Array(saidas[0]));
-  const alinhadoPorOlhos = Boolean(caixa.olhoEsquerdo && caixa.olhoDireito);
   return { embedding, recorteUri: recorte.uri, alinhadoPorOlhos };
+}
+
+interface CaixaComOrigem {
+  caixa: CaixaRosto;
+  alinhadoPorOlhos: boolean;
 }
 
 /**
@@ -110,23 +117,28 @@ export async function calcularEmbedding(uriImagem: string, caixa: CaixaRosto): P
  * detector sem margem — mais seguro do que arriscar um recorte praticamente
  * vazio (ver a checagem de área mínima em `calcularEmbedding`).
  */
-async function calcularCaixaComMargemSegura(uriImagem: string, caixa: CaixaRosto): Promise<CaixaRosto> {
+async function calcularCaixaComMargemSegura(uriImagem: string, caixa: CaixaRosto): Promise<CaixaComOrigem> {
   try {
     const { largura, altura } = await obterDimensoesImagem(uriImagem);
     if (largura > 0 && altura > 0) {
       // Prioriza alinhar pelos olhos (mais estável entre fotos da mesma pessoa
-      // — ver calcularCaixaAlinhada) quando o detector identificou os dois;
-      // cai pra margem sobre a caixa bruta quando não (ex.: rosto de perfil,
-      // só um olho visível).
+      // — ver calcularCaixaAlinhada) quando o detector identificou os dois. Mas
+      // num rosto pequeno/distante (drone), os olhos ficam a poucos pixels um
+      // do outro, e o recorte alinhado por eles pode sair menor do que a
+      // própria caixa do rosto — nesse caso cai pro método antigo (margem
+      // sobre a caixa bruta), que é mais robusto pra rosto pequeno.
       if (caixa.olhoEsquerdo && caixa.olhoDireito) {
-        return calcularCaixaAlinhada(caixa.olhoEsquerdo, caixa.olhoDireito, largura, altura);
+        const alinhada = calcularCaixaAlinhada(caixa.olhoEsquerdo, caixa.olhoDireito, largura, altura);
+        if (alinhada.largura * alinhada.altura >= AREA_MINIMA_ACEITAVEL) {
+          return { caixa: alinhada, alinhadoPorOlhos: true };
+        }
       }
-      return aplicarMargem(caixa, largura, altura);
+      return { caixa: aplicarMargem(caixa, largura, altura), alinhadoPorOlhos: false };
     }
   } catch {
     // segue sem margem abaixo
   }
-  return caixa;
+  return { caixa, alinhadoPorOlhos: false };
 }
 
 /** Dimensões da imagem original — necessárias pra aplicar a margem do recorte com segurança. */
