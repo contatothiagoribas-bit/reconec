@@ -7,26 +7,32 @@ import {
 } from "../types";
 import { reconhecerRostos } from "./faceRecognition";
 import { encontrarMaisProximo, norma } from "../utils/vectorMath";
+import { instantesValidos } from "../utils/amostragemVideo";
 
-// Momentos do vídeo (em ms, a partir do início) de onde extraímos frames para analisar.
-// Amostrar mais de um instante aumenta a chance de pegar um rosto de frente e bem iluminado.
-const INSTANTES_AMOSTRA_MS = [1000, 3000, 6000];
+export type CallbackProgresso = (framesAnalisados: number, totalFrames: number) => void;
 
 /**
- * Analisa um vídeo: extrai alguns frames, detecta e reconhece rostos neles, e
- * retorna a lista de clientes cadastrados encontrados (pode ser mais de um, ou nenhum).
+ * Analisa um vídeo inteiro (não só o começo): extrai frames espalhados por toda
+ * a duração, detecta e reconhece rostos neles, e retorna a lista de clientes
+ * cadastrados encontrados (pode ser mais de um, ou nenhum). Pensado pra vídeos
+ * longos e com câmera em movimento (ex.: filmagem de drone), onde a pessoa pode
+ * aparecer só por um instante em qualquer ponto do vídeo.
  */
 export async function processarVideo(
   video: VideoAsset,
-  clientes: Cliente[]
+  clientes: Cliente[],
+  onProgresso?: CallbackProgresso
 ): Promise<ResultadoProcessamento> {
-  try {
-    const correspondencias: Correspondencia[] = [];
+  const instantes = instantesValidos(video.duracaoMs);
+  const correspondencias: Correspondencia[] = [];
+  let framesLidosComSucesso = 0;
 
-    for (const instanteMs of instantesValidos(video.duracaoMs)) {
+  for (let i = 0; i < instantes.length; i++) {
+    try {
       const { uri: uriFrame } = await VideoThumbnails.getThumbnailAsync(video.uri, {
-        time: instanteMs,
+        time: instantes[i],
       });
+      framesLidosComSucesso++;
 
       const rostos = await reconhecerRostos(uriFrame);
       for (const rosto of rostos) {
@@ -40,25 +46,27 @@ export async function processarVideo(
           });
         }
       }
+    } catch {
+      // Um frame ruim isolado (ex.: recorte degenerado num instante específico)
+      // não deve derrubar a análise do vídeo inteiro — só pula esse frame.
     }
+    onProgresso?.(i + 1, instantes.length);
+  }
 
-    return {
-      video,
-      clientesReconhecidos: correspondencias,
-      status: correspondencias.length > 0 ? "reconhecido" : "nao_reconhecido",
-    };
-  } catch (erro) {
+  // Se nem um frame sequer pôde ser lido, o problema é o próprio vídeo (arquivo
+  // corrompido, URI inválida etc.) — reportar como erro, não como "não reconhecido".
+  if (framesLidosComSucesso === 0) {
     return {
       video,
       clientesReconhecidos: [],
       status: "erro",
-      mensagemErro: erro instanceof Error ? erro.message : String(erro),
+      mensagemErro: "Não foi possível ler nenhum frame deste vídeo.",
     };
   }
-}
 
-/** Evita amostrar instantes além da duração do vídeo (vídeos curtos). */
-function instantesValidos(duracaoMs: number): number[] {
-  const validos = INSTANTES_AMOSTRA_MS.filter((t) => t < duracaoMs);
-  return validos.length > 0 ? validos : [Math.floor(duracaoMs / 2)];
+  return {
+    video,
+    clientesReconhecidos: correspondencias,
+    status: correspondencias.length > 0 ? "reconhecido" : "nao_reconhecido",
+  };
 }

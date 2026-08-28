@@ -17,6 +17,10 @@ export async function detectarRostos(uriImagem: string): Promise<CaixaRosto[]> {
     performanceMode: "accurate",
     landmarkMode: "none",
     classificationMode: "none",
+    // Padrão do ML Kit é 0.1 (rosto precisa ocupar 10% da largura da imagem).
+    // Vídeos de drone costumam mostrar a pessoa bem distante/pequena no quadro —
+    // reduz bastante esse mínimo pra não descartar esses rostos de cara.
+    minFaceSize: 0.02,
   });
 
   return faces.map((face) => ({

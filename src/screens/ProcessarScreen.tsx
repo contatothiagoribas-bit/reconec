@@ -18,6 +18,7 @@ const CONFIG_PADRAO: ConfiguracaoReconhecimento = {
 interface ItemProcessamento {
   video: VideoAsset;
   status: "pendente" | "processando" | "concluido" | "erro";
+  progresso?: { atual: number; total: number };
   albuns?: string[];
   diagnostico?: string;
   mensagemErro?: string;
@@ -42,12 +43,25 @@ export default function ProcessarScreen() {
         return;
       }
       const videos = await selecionarVideosDoDispositivo();
-      if (videos.length > 0) {
-        setItens(videos.map((video) => ({ video, status: "pendente" })));
-      }
+      if (videos.length === 0) return;
+
+      // Acumula com o que já tinha sido escolhido antes (dá pra selecionar aos
+      // poucos, em várias idas à galeria, em vez de tudo de uma vez só) — sem
+      // duplicar um vídeo que já estava na lista.
+      setItens((atual) => {
+        const idsExistentes = new Set(atual.map((item) => item.video.id));
+        const novos = videos
+          .filter((video) => !idsExistentes.has(video.id))
+          .map((video): ItemProcessamento => ({ video, status: "pendente" }));
+        return [...atual, ...novos];
+      });
     } finally {
       setCarregandoVideos(false);
     }
+  }
+
+  function limparSelecao() {
+    setItens([]);
   }
 
   async function processarTodos() {
@@ -69,7 +83,20 @@ export default function ProcessarScreen() {
           atual.map((item, idx) => (idx === i ? { ...item, status: "processando" } : item))
         );
         try {
-          const resultado: ResultadoProcessamento = await processarVideo(itens[i].video, clientes);
+          const resultado: ResultadoProcessamento = await processarVideo(
+            itens[i].video,
+            clientes,
+            (atualFrame, totalFrames) => {
+              setItens((atual) =>
+                atual.map((item, idx) =>
+                  idx === i ? { ...item, progresso: { atual: atualFrame, total: totalFrames } } : item
+                )
+              );
+            }
+          );
+          if (resultado.status === "erro") {
+            throw new Error(resultado.mensagemErro ?? "Não foi possível processar o vídeo.");
+          }
           const albuns = await organizarVideo(resultado, CONFIG_PADRAO);
           const diagnostico = descreverDiagnostico(resultado.clientesReconhecidos);
           setItens((atual) =>
@@ -100,15 +127,15 @@ export default function ProcessarScreen() {
     <View style={estilos.container}>
       <Text style={estilos.titulo}>Organizar vídeos por cliente</Text>
       <Text style={estilos.ajuda}>
-        {clientes.length} cliente(s) cadastrado(s). Escolha os vídeos que quer analisar e depois
-        toque em "Processar" para separá-los em álbuns com o nome de cada cliente reconhecido.
+        {clientes.length} cliente(s) cadastrado(s). {itens.length} vídeo(s) selecionado(s). Toque em
+        "Selecionar vídeos" quantas vezes precisar pra ir juntando os vídeos, e depois em "Processar".
       </Text>
 
       <View style={estilos.linhaBotoes}>
         <TouchableOpacity
           style={estilos.botaoSecundario}
           onPress={selecionarVideos}
-          disabled={carregandoVideos}
+          disabled={carregandoVideos || processando}
         >
           <Text style={estilos.textoBotaoSecundario}>
             {carregandoVideos ? "Abrindo..." : "Selecionar vídeos"}
@@ -122,6 +149,12 @@ export default function ProcessarScreen() {
           <Text style={estilos.textoBotaoPrimario}>{processando ? "Processando..." : "Processar"}</Text>
         </TouchableOpacity>
       </View>
+
+      {itens.length > 0 && !processando && (
+        <TouchableOpacity onPress={limparSelecao} style={estilos.linkLimpar}>
+          <Text style={estilos.textoLinkLimpar}>Limpar seleção</Text>
+        </TouchableOpacity>
+      )}
 
       <FlatList
         data={itens}
@@ -150,7 +183,9 @@ function descreverStatus(item: ItemProcessamento): string {
     case "pendente":
       return "aguardando";
     case "processando":
-      return "analisando...";
+      return item.progresso
+        ? `analisando frame ${item.progresso.atual}/${item.progresso.total}...`
+        : "analisando...";
     case "concluido":
       return `→ ${item.albuns?.join(", ")}`;
     case "erro":
@@ -164,7 +199,7 @@ const estilos = StyleSheet.create({
   container: { flex: 1, padding: 16 },
   titulo: { fontSize: 18, fontWeight: "600", marginBottom: 4 },
   ajuda: { color: "#666", marginBottom: 12 },
-  linhaBotoes: { flexDirection: "row", gap: 8, marginBottom: 12 },
+  linhaBotoes: { flexDirection: "row", gap: 8, marginBottom: 8 },
   botaoSecundario: {
     flex: 1,
     borderWidth: 1,
@@ -183,6 +218,8 @@ const estilos = StyleSheet.create({
   },
   botaoDesabilitado: { opacity: 0.5 },
   textoBotaoPrimario: { color: "#fff", fontWeight: "600" },
+  linkLimpar: { alignSelf: "flex-end", marginBottom: 8 },
+  textoLinkLimpar: { color: "#d33", fontSize: 13 },
   vazio: { color: "#888", fontStyle: "italic", marginTop: 12 },
   linhaVideo: {
     paddingVertical: 10,
