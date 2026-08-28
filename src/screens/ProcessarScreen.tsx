@@ -103,8 +103,9 @@ export default function ProcessarScreen() {
           if (resultado.status === "erro") {
             throw new Error(resultado.mensagemErro ?? "Não foi possível processar o vídeo.");
           }
-          const albuns = await organizarVideo(resultado, CONFIG_PADRAO);
-          const diagnostico = descreverDiagnostico(resultado.clientesReconhecidos);
+          const { albuns, aviso } = await organizarVideo(resultado, CONFIG_PADRAO);
+          const diagnosticoBase = descreverDiagnostico(resultado.clientesReconhecidos);
+          const diagnostico = aviso ? `${diagnosticoBase} — atenção: ${aviso}` : diagnosticoBase;
           setItens((atual) =>
             atual.map((item, idx) =>
               idx === i ? { ...item, status: "concluido", albuns, diagnostico } : item

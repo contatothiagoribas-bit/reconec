@@ -21,6 +21,38 @@ async function obterOuCriarAlbum(
   return { album: novo, criadoAgora: true };
 }
 
+function esperar(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Confere se o asset já aparece no álbum esperado, tentando algumas vezes com
+ * uma pequena pausa entre elas — o MediaStore do Android pode levar um
+ * instante pra refletir uma mudança de álbum recém-feita, então checar uma
+ * vez só logo em seguida pode dar falso negativo.
+ */
+async function confirmarAlbum(asset: Asset, albuns: string[]): Promise<boolean> {
+  const TENTATIVAS = 3;
+  const PAUSA_MS = 400;
+  for (let tentativa = 0; tentativa < TENTATIVAS; tentativa++) {
+    const albunsDoAsset = await asset.getAlbums();
+    const titulosDoAsset = await Promise.all(albunsDoAsset.map((album) => album.getTitle()));
+    if (albuns.some((nomeAlbum) => titulosDoAsset.includes(nomeAlbum))) {
+      return true;
+    }
+    if (tentativa < TENTATIVAS - 1) {
+      await esperar(PAUSA_MS);
+    }
+  }
+  return false;
+}
+
+export interface ResultadoOrganizacao {
+  albuns: string[];
+  /** Presente quando não foi possível confirmar a colocação no álbum — não bloqueia, só avisa. */
+  aviso?: string;
+}
+
 /**
  * Coloca o vídeo já processado no(s) álbum(ns) do(s) cliente(s) reconhecido(s) nele
  * (ou no álbum de "não reconhecidos"), de acordo com a configuração escolhida.
@@ -35,7 +67,7 @@ async function obterOuCriarAlbum(
 export async function organizarVideo(
   resultado: ResultadoProcessamento,
   config: ConfiguracaoReconhecimento
-): Promise<string[]> {
+): Promise<ResultadoOrganizacao> {
   const albuns = decidirAlbuns(resultado.clientesReconhecidos, config);
   const asset = await Asset.create(resultado.video.uri);
 
@@ -48,17 +80,18 @@ export async function organizarVideo(
     }
   }
 
-  // Confere que o vídeo realmente foi parar no(s) álbum(ns) esperado(s) —
-  // sem isso, uma falha silenciosa da API nativa apareceria como sucesso.
-  const albunsDoAsset = await asset.getAlbums();
-  const titulosDoAsset = await Promise.all(albunsDoAsset.map((album) => album.getTitle()));
-  const nenhumAlbumEsperadoConfirmado = !albuns.some((nomeAlbum) => titulosDoAsset.includes(nomeAlbum));
-  if (nenhumAlbumEsperadoConfirmado) {
-    throw new Error(
-      `O vídeo foi processado, mas não foi possível confirmar que ele entrou no álbum "${albuns.join(", ")}" — ` +
-        "confira manualmente na Galeria."
-    );
+  // Confere que o vídeo realmente foi parar no(s) álbum(ns) esperado(s) — sem
+  // isso, uma falha silenciosa da API nativa apareceria como sucesso. Não
+  // bloqueia o processamento se a confirmação falhar (pode ser só o
+  // MediaStore demorando a atualizar) — só avisa, pra não travar o app numa
+  // situação que provavelmente deu certo.
+  const confirmado = await confirmarAlbum(asset, albuns);
+  if (!confirmado) {
+    return {
+      albuns,
+      aviso: `não foi possível confirmar que o vídeo entrou no álbum "${albuns.join(", ")}" — confira na Galeria.`,
+    };
   }
 
-  return albuns;
+  return { albuns };
 }
