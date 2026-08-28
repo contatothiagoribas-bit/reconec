@@ -58,6 +58,14 @@ export interface ResultadoProcessamento {
   clientesReconhecidos: Correspondencia[];
   status: "reconhecido" | "nao_reconhecido" | "erro";
   mensagemErro?: string;
+  /**
+   * Presente quando NENHUM frame do vídeo pôde ser lido (formato/codec não
+   * suportado pelo extrator, arquivo corrompido etc.) — o vídeo ainda é
+   * tratado como "nao_reconhecido" (vai pro álbum de não reconhecidos em vez
+   * de ficar travado como erro), mas com esse aviso explicando o motivo real,
+   * diferente de "ninguém foi reconhecido nos frames".
+   */
+  avisoLeitura?: string;
 }
 
 /** Estratégia usada para decidir em quais álbuns um vídeo deve ser colocado. */

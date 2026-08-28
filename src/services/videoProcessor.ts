@@ -80,15 +80,18 @@ export async function processarVideo(
   }
 
   // Se nem um frame sequer pôde ser lido, o problema é o próprio vídeo (arquivo
-  // corrompido, formato não suportado pelo extrator, URI inválida etc.) —
-  // reportar como erro, não como "não reconhecido".
+  // corrompido, formato/codec não suportado pelo extrator, URI inválida etc.).
+  // Não trava mais como "erro" (o que deixava o vídeo travado pra sempre, sem
+  // nunca ser organizado) — trata como "nao_reconhecido" (vai pro álbum de não
+  // reconhecidos), mas com um aviso explicando que o motivo real foi não
+  // conseguir ler o vídeo, não "ninguém foi encontrado nos frames".
   if (framesLidosComSucesso === 0) {
     const detalhe = ultimoErro instanceof Error ? ultimoErro.message : String(ultimoErro);
     return {
       video,
       clientesReconhecidos: [],
-      status: "erro",
-      mensagemErro: `Não foi possível ler nenhum frame deste vídeo. (${detalhe})`,
+      status: "nao_reconhecido",
+      avisoLeitura: `não foi possível ler nenhum frame deste vídeo (${detalhe}) — formato/codec pode não ser suportado`,
     };
   }
 

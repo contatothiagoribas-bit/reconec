@@ -118,7 +118,10 @@ export default function ProcessarScreen() {
           // Extraído numa constante à parte: o TypeScript não propaga o estreitamento
           // de `resultado.status` (feito acima) pra dentro dos closures do `setItens` abaixo.
           const statusReconhecimento = resultado.status;
-          const diagnosticoBase = descreverDiagnostico(resultado.clientesReconhecidos);
+          // Quando nenhum frame pôde ser lido, avisoLeitura já explica o motivo real —
+          // melhor que "nenhum rosto detectado nos frames analisados" (que sugeriria
+          // que os frames foram analisados e ninguém apareceu, não é o caso).
+          const diagnosticoBase = resultado.avisoLeitura ?? descreverDiagnostico(resultado.clientesReconhecidos);
           if (organizar) {
             const { albuns, aviso } = await organizarVideo(resultado, CONFIG_PADRAO);
             const diagnostico = aviso ? `${diagnosticoBase} — atenção: ${aviso}` : diagnosticoBase;
