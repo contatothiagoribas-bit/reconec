@@ -24,7 +24,10 @@ interface ItemProcessamento {
   video: VideoAsset;
   status: "pendente" | "processando" | "concluido" | "erro";
   progresso?: { atual: number; total: number };
+  /** Presente quando o vídeo foi de fato organizado (movido pro álbum do cliente). */
   albuns?: string[];
+  /** Presente no modo teste (sem organizar) — resultado do reconhecimento, sem mover nada. */
+  resultadoTeste?: "reconhecido" | "nao_reconhecido";
   diagnostico?: string;
   mensagemErro?: string;
 }
@@ -69,17 +72,26 @@ export default function ProcessarScreen() {
     setItens([]);
   }
 
-  async function processarTodos() {
+  /**
+   * Roda o reconhecimento em todos os vídeos selecionados. No modo teste (`organizar:
+   * false`) NADA é movido na Galeria — só mostra o resultado, pra dar pra rodar
+   * quantas vezes precisar (ajustando cadastro, limiar etc.) sem precisar
+   * reselecionar os vídeos toda vez porque já foram organizados/movidos.
+   */
+  async function executar(organizar: boolean) {
     if (clientes.length === 0) {
       Alert.alert("Nenhum cliente cadastrado", "Cadastre ao menos um cliente antes de processar vídeos.");
       return;
     }
-    // Permissão separada da usada no seletor: essa aqui é a que permite criar
-    // os álbuns por cliente na Galeria (escrita), não só ler os vídeos.
-    const permitido = await garantirPermissaoMidia();
-    if (!permitido) {
-      Alert.alert("Permissão necessária", "Autorize o acesso à galeria para criar os álbuns organizados.");
-      return;
+    if (organizar) {
+      // Permissão separada da usada no seletor: essa aqui é a que permite criar
+      // os álbuns por cliente na Galeria (escrita), não só ler os vídeos. No modo
+      // teste isso não é necessário, já que nada é movido.
+      const permitido = await garantirPermissaoMidia();
+      if (!permitido) {
+        Alert.alert("Permissão necessária", "Autorize o acesso à galeria para criar os álbuns organizados.");
+        return;
+      }
     }
     setProcessando(true);
     try {
@@ -103,14 +115,35 @@ export default function ProcessarScreen() {
           if (resultado.status === "erro") {
             throw new Error(resultado.mensagemErro ?? "Não foi possível processar o vídeo.");
           }
-          const { albuns, aviso } = await organizarVideo(resultado, CONFIG_PADRAO);
+          // Extraído numa constante à parte: o TypeScript não propaga o estreitamento
+          // de `resultado.status` (feito acima) pra dentro dos closures do `setItens` abaixo.
+          const statusReconhecimento = resultado.status;
           const diagnosticoBase = descreverDiagnostico(resultado.clientesReconhecidos);
-          const diagnostico = aviso ? `${diagnosticoBase} — atenção: ${aviso}` : diagnosticoBase;
-          setItens((atual) =>
-            atual.map((item, idx) =>
-              idx === i ? { ...item, status: "concluido", albuns, diagnostico } : item
-            )
-          );
+          if (organizar) {
+            const { albuns, aviso } = await organizarVideo(resultado, CONFIG_PADRAO);
+            const diagnostico = aviso ? `${diagnosticoBase} — atenção: ${aviso}` : diagnosticoBase;
+            setItens((atual) =>
+              atual.map((item, idx) =>
+                idx === i
+                  ? { ...item, status: "concluido", albuns, resultadoTeste: undefined, diagnostico }
+                  : item
+              )
+            );
+          } else {
+            setItens((atual) =>
+              atual.map((item, idx) =>
+                idx === i
+                  ? {
+                      ...item,
+                      status: "concluido",
+                      albuns: undefined,
+                      resultadoTeste: statusReconhecimento,
+                      diagnostico: diagnosticoBase,
+                    }
+                  : item
+              )
+            );
+          }
         } catch (erro) {
           setItens((atual) =>
             atual.map((item, idx) =>
@@ -135,7 +168,9 @@ export default function ProcessarScreen() {
       <Text style={estilos.titulo}>Organizar vídeos por cliente</Text>
       <Text style={estilos.ajuda}>
         {clientes.length} cliente(s) cadastrado(s). {itens.length} vídeo(s) selecionado(s). Toque em
-        "Selecionar vídeos" quantas vezes precisar pra ir juntando os vídeos, e depois em "Processar".
+        "Selecionar vídeos" quantas vezes precisar pra ir juntando os vídeos. "Testar" mostra o
+        reconhecimento sem mover nada na Galeria — dá pra rodar quantas vezes precisar nos mesmos
+        vídeos. "Processar" faz valer, movendo os vídeos pros álbuns.
       </Text>
 
       <View style={estilos.linhaBotoes}>
@@ -149,13 +184,22 @@ export default function ProcessarScreen() {
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[estilos.botaoPrimario, (processando || itens.length === 0) && estilos.botaoDesabilitado]}
-          onPress={processarTodos}
+          style={[estilos.botaoSecundario, (processando || itens.length === 0) && estilos.botaoDesabilitado]}
+          onPress={() => executar(false)}
           disabled={processando || itens.length === 0}
         >
-          <Text style={estilos.textoBotaoPrimario}>{processando ? "Processando..." : "Processar"}</Text>
+          <Text style={estilos.textoBotaoSecundario}>{processando ? "..." : "Testar"}</Text>
         </TouchableOpacity>
       </View>
+      <TouchableOpacity
+        style={[estilos.botaoPrimario, (processando || itens.length === 0) && estilos.botaoDesabilitado]}
+        onPress={() => executar(true)}
+        disabled={processando || itens.length === 0}
+      >
+        <Text style={estilos.textoBotaoPrimario}>
+          {processando ? "Processando..." : "Processar (mover pros álbuns)"}
+        </Text>
+      </TouchableOpacity>
 
       {itens.length > 0 && !processando && (
         <TouchableOpacity onPress={limparSelecao} style={estilos.linkLimpar}>
@@ -194,7 +238,12 @@ function descreverStatus(item: ItemProcessamento): string {
         ? `analisando frame ${item.progresso.atual}/${item.progresso.total}...`
         : "analisando...";
     case "concluido":
-      return `→ ${item.albuns?.join(", ")}`;
+      if (item.albuns) {
+        return `→ ${item.albuns.join(", ")}`;
+      }
+      return item.resultadoTeste === "reconhecido"
+        ? "teste: reconhecido (nada foi movido)"
+        : "teste: não reconhecido (nada foi movido)";
     case "erro":
       return `erro: ${item.mensagemErro}`;
     default:
@@ -217,11 +266,11 @@ const estilos = StyleSheet.create({
   },
   textoBotaoSecundario: { color: "#4a4a4a", fontWeight: "500" },
   botaoPrimario: {
-    flex: 1,
     backgroundColor: "#2f6fed",
     borderRadius: 8,
     paddingVertical: 10,
     alignItems: "center",
+    marginBottom: 8,
   },
   botaoDesabilitado: { opacity: 0.5 },
   textoBotaoPrimario: { color: "#fff", fontWeight: "600" },
