@@ -23,23 +23,28 @@ export async function cadastrarCliente(nome: string, fotos: FotoRegistro[]): Pro
   }
 
   const embeddings: number[][] = [];
-  let fotosComErro = 0;
+  const errosPorFoto: string[] = [];
 
   for (const foto of fotos) {
     try {
       const { embedding } = await calcularEmbedding(foto.uri, foto.caixa);
       embeddings.push(embedding);
-    } catch {
-      fotosComErro++;
+    } catch (erro) {
+      errosPorFoto.push(erro instanceof Error ? erro.message : String(erro));
     }
   }
 
   if (embeddings.length === 0) {
-    throw new Error("Não foi possível calcular o embedding de nenhuma das fotos enviadas");
+    // Mostra o motivo de verdade (ex.: "recorte pequeno demais") em vez de uma
+    // mensagem genérica — sem isso, com uma única foto que falha, o usuário só
+    // via "não foi possível" sem nenhuma pista do porquê.
+    throw new Error(
+      `Não foi possível calcular o embedding de nenhuma das fotos enviadas. Detalhe: ${errosPorFoto.join("; ")}`
+    );
   }
 
-  if (fotosComErro > 0) {
-    console.warn(`${fotosComErro} foto(s) ignorada(s) por erro ao calcular o embedding.`);
+  if (errosPorFoto.length > 0) {
+    console.warn(`${errosPorFoto.length} foto(s) ignorada(s): ${errosPorFoto.join("; ")}`);
   }
 
   return criarCliente({
