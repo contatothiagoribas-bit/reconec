@@ -1,3 +1,4 @@
+import { MediaToolkit } from "react-native-media-toolkit";
 import * as VideoThumbnails from "expo-video-thumbnails";
 import {
   Cliente,
@@ -11,10 +12,26 @@ import { instantesValidos } from "../utils/amostragemVideo";
 
 export type CallbackProgresso = (framesAnalisados: number, totalFrames: number) => void;
 
-// Qualidade do thumbnail extraído de cada frame (0-1). Não reduz a resolução
-// (a lib não permite controlar isso), só a compressão JPEG — mas isso já
-// ajuda um pouco na velocidade de decodificação/recorte que vem depois.
-const QUALIDADE_THUMBNAIL = 0.5;
+/**
+ * Extrai um frame do vídeo num instante específico. Usa o `react-native-media-toolkit`
+ * (Jetpack Media3/AVFoundation) como principal — bem mais robusto com codecs
+ * incomuns (ex.: HEVC de drone) do que a API antiga (`MediaMetadataRetriever`,
+ * usada pelo `expo-video-thumbnails`) — e cai pra essa como reserva, já que num
+ * caso raro uma pode funcionar onde a outra falha.
+ */
+async function extrairFrame(uri: string, timeMs: number): Promise<string> {
+  try {
+    const resultado = await MediaToolkit.getThumbnail(uri, { timeMs, quality: 50 });
+    return resultado.uri;
+  } catch (erroPrincipal) {
+    try {
+      const resultado = await VideoThumbnails.getThumbnailAsync(uri, { time: timeMs, quality: 0.5 });
+      return resultado.uri;
+    } catch {
+      throw erroPrincipal;
+    }
+  }
+}
 
 /**
  * Analisa um vídeo inteiro (não só o começo): extrai frames espalhados por toda
@@ -45,10 +62,7 @@ export async function processarVideo(
 
   for (let i = 0; i < instantes.length; i++) {
     try {
-      const { uri: uriFrame } = await VideoThumbnails.getThumbnailAsync(video.uri, {
-        time: instantes[i],
-        quality: QUALIDADE_THUMBNAIL,
-      });
+      const uriFrame = await extrairFrame(video.uri, instantes[i]);
       framesLidosComSucesso++;
 
       const rostos = await reconhecerRostos(uriFrame, "fast");
