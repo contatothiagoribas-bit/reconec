@@ -84,6 +84,27 @@ export function mediaVetores(vetores: number[][]): number[] {
 }
 
 /**
+ * Maior distância euclidiana entre qualquer par de vetores da lista. Serve pra
+ * detectar fotos de cadastro que na verdade são de PESSOAS DIFERENTES: a média
+ * de embeddings (ver `mediaVetores`) só faz sentido pra várias fotos da MESMA
+ * pessoa em ângulos/iluminações diferentes — se as fotos forem de pessoas
+ * diferentes, a média vira uma mistura que não bate bem com o rosto de
+ * nenhuma delas. Retorna 0 se a lista tiver 0 ou 1 vetor (nada a comparar).
+ */
+export function maiorDistanciaEntrePares(vetores: number[][]): number {
+  let maior = 0;
+  for (let i = 0; i < vetores.length; i++) {
+    for (let j = i + 1; j < vetores.length; j++) {
+      const distancia = distanciaEuclidiana(vetores[i], vetores[j]);
+      if (distancia > maior) {
+        maior = distancia;
+      }
+    }
+  }
+  return maior;
+}
+
+/**
  * Encontra, dentre uma lista de clientes com embedding, qual está mais próximo do
  * embedding informado, junto com a distância. Retorna null se a lista estiver vazia.
  * Usa distância euclidiana por padrão (a métrica do modelo embutido no app), mas

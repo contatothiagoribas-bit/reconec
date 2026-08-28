@@ -4,6 +4,7 @@ import {
   mediaVetores,
   encontrarMaisProximo,
   norma,
+  maiorDistanciaEntrePares,
 } from "../src/utils/vectorMath";
 
 describe("distanciaCosseno", () => {
@@ -71,6 +72,29 @@ describe("mediaVetores", () => {
 
   it("lança erro para vetores de tamanhos diferentes", () => {
     expect(() => mediaVetores([[1, 2], [1, 2, 3]])).toThrow();
+  });
+});
+
+describe("maiorDistanciaEntrePares", () => {
+  it("retorna 0 pra lista vazia", () => {
+    expect(maiorDistanciaEntrePares([])).toBe(0);
+  });
+
+  it("retorna 0 pra um único vetor (nada a comparar)", () => {
+    expect(maiorDistanciaEntrePares([[1, 2, 3]])).toBe(0);
+  });
+
+  it("retorna a distância entre os dois quando há só um par", () => {
+    expect(maiorDistanciaEntrePares([[0, 0], [3, 4]])).toBe(5);
+  });
+
+  it("retorna a MAIOR distância entre todos os pares, não a primeira", () => {
+    const vetores = [
+      [0, 0],
+      [0.1, 0], // perto do primeiro
+      [10, 0], // bem longe dos outros dois
+    ];
+    expect(maiorDistanciaEntrePares(vetores)).toBeCloseTo(10);
   });
 });
 

@@ -1,8 +1,15 @@
 import { calcularEmbedding } from "./embeddingModel";
-import { mediaVetores } from "../utils/vectorMath";
+import { mediaVetores, maiorDistanciaEntrePares } from "../utils/vectorMath";
 import { normalizarNomeCliente } from "../utils/fileNames";
 import { criarCliente } from "../db/clientesRepository";
 import { Cliente, FotoRegistro } from "../types";
+
+// Acima disso, a distância entre duas fotos de cadastro provavelmente indica
+// pessoas DIFERENTES, não a mesma pessoa em ângulos diferentes — casos
+// confirmados de fotos da mesma pessoa (mesmo com ângulo ruim) ficaram
+// sempre abaixo de ~0.85; casos de pessoas diferentes ficaram sempre acima
+// de 1.0. Ver o comentário de maiorDistanciaEntrePares().
+const LIMIAR_FOTOS_DE_PESSOAS_DIFERENTES = 1.0;
 
 /**
  * Cadastra um novo cliente: calcula o embedding facial de cada foto enviada e
@@ -45,6 +52,20 @@ export async function cadastrarCliente(nome: string, fotos: FotoRegistro[]): Pro
 
   if (errosPorFoto.length > 0) {
     console.warn(`${errosPorFoto.length} foto(s) ignorada(s): ${errosPorFoto.join("; ")}`);
+  }
+
+  // Guarda contra cadastrar sem querer as fotos de PESSOAS DIFERENTES sob um
+  // único nome (ex.: um casal, um grupo) — a média dos embeddings só faz
+  // sentido pra várias fotos da MESMA pessoa; misturando identidades, o
+  // resultado não bate bem com o rosto de nenhuma delas, e o cliente nunca é
+  // reconhecido depois, sem nenhum aviso na hora do cadastro.
+  const maiorDistancia = maiorDistanciaEntrePares(embeddings);
+  if (maiorDistancia > LIMIAR_FOTOS_DE_PESSOAS_DIFERENTES) {
+    throw new Error(
+      `As fotos enviadas parecem ser de pessoas diferentes (distância entre elas: ${maiorDistancia.toFixed(2)}) ` +
+        "— confira se todas são da mesma pessoa. Pra cadastrar mais de uma pessoa (ex.: um casal), " +
+        "cadastre cada uma separadamente, com um nome diferente."
+    );
   }
 
   return criarCliente({
