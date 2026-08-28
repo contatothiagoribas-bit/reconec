@@ -15,7 +15,8 @@ import { Cliente } from "../types";
 import { listarClientes, removerCliente } from "../db/clientesRepository";
 import { cadastrarCliente } from "../services/cadastroCliente";
 import { garantirPermissaoCamera } from "../services/permissoes";
-import { norma } from "../utils/vectorMath";
+import { norma, encontrarMaisProximo } from "../utils/vectorMath";
+import { reconhecerRostos } from "../services/faceRecognition";
 
 export default function ClientesScreen() {
   const [clientes, setClientes] = useState<Cliente[]>([]);
@@ -23,6 +24,8 @@ export default function ClientesScreen() {
   const [salvando, setSalvando] = useState(false);
   const [nome, setNome] = useState("");
   const [fotos, setFotos] = useState<string[]>([]);
+  const [testando, setTestando] = useState(false);
+  const [resultadoTeste, setResultadoTeste] = useState<string | null>(null);
 
   const carregar = useCallback(async () => {
     setCarregando(true);
@@ -80,6 +83,40 @@ export default function ClientesScreen() {
       Alert.alert("Não foi possível cadastrar", erro instanceof Error ? erro.message : String(erro));
     } finally {
       setSalvando(false);
+    }
+  }
+
+  /**
+   * Testa o reconhecimento com uma única foto, sem precisar processar um vídeo
+   * inteiro (nem criar álbum nenhum) — serve pra descobrir rapidamente se o
+   * problema é o cálculo do reconhecimento em si, ou só a dificuldade de achar
+   * um bom frame num vídeo específico (drone, ângulo ruim, etc.).
+   */
+  async function testarComFoto() {
+    const resultado = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      quality: 0.9,
+    });
+    if (resultado.canceled) return;
+
+    setTestando(true);
+    setResultadoTeste(null);
+    try {
+      const rostos = await reconhecerRostos(resultado.assets[0].uri);
+      if (rostos.length === 0) {
+        setResultadoTeste("Nenhum rosto detectado nessa foto.");
+        return;
+      }
+      const linhas = rostos.map((rosto, indice) => {
+        const proximo = clientes.length > 0 ? encontrarMaisProximo(rosto.embedding, clientes) : null;
+        if (!proximo) return `Rosto ${indice + 1}: nenhum cliente cadastrado pra comparar.`;
+        return `Rosto ${indice + 1}: mais parecido com ${proximo.candidato.nome} — distância ${proximo.distancia.toFixed(2)}`;
+      });
+      setResultadoTeste(linhas.join("\n"));
+    } catch (erro) {
+      setResultadoTeste(`Erro: ${erro instanceof Error ? erro.message : String(erro)}`);
+    } finally {
+      setTestando(false);
     }
   }
 
@@ -157,6 +194,26 @@ export default function ClientesScreen() {
               </TouchableOpacity>
             </View>
           )}
+          ListFooterComponent={
+            <View style={estilos.blocoTeste}>
+              <Text style={estilos.subtitulo}>Testar reconhecimento com uma foto</Text>
+              <Text style={estilos.ajudaTeste}>
+                Escolha uma foto (não precisa ser um vídeo) pra ver rapidinho a distância calculada
+                até cada cliente cadastrado — útil pra descobrir se o problema é o cálculo em si, ou
+                só achar um bom frame dentro de um vídeo específico.
+              </Text>
+              <TouchableOpacity
+                style={[estilos.botaoSecundario, testando && estilos.botaoDesabilitado]}
+                onPress={testarComFoto}
+                disabled={testando}
+              >
+                <Text style={estilos.textoBotaoSecundario}>
+                  {testando ? "Analisando..." : "Escolher foto pra testar"}
+                </Text>
+              </TouchableOpacity>
+              {resultadoTeste && <Text style={estilos.resultadoTeste}>{resultadoTeste}</Text>}
+            </View>
+          }
         />
       )}
     </View>
@@ -210,4 +267,14 @@ const estilos = StyleSheet.create({
   nomeCliente: { fontSize: 15 },
   normaCliente: { fontSize: 11, color: "#999" },
   linkRemover: { color: "#d33", fontWeight: "500" },
+  blocoTeste: { marginTop: 24, paddingTop: 16, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: "#ddd" },
+  ajudaTeste: { color: "#666", fontSize: 13, marginBottom: 10 },
+  resultadoTeste: {
+    marginTop: 12,
+    padding: 10,
+    backgroundColor: "#f2f2f2",
+    borderRadius: 8,
+    color: "#333",
+    fontSize: 13,
+  },
 });
