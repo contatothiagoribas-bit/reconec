@@ -37,12 +37,36 @@ export async function selecionarVideosDoDispositivo(): Promise<VideoAsset[]> {
     return [];
   }
 
-  return resultado.assets.map((asset, indice) => ({
-    id: asset.assetId ?? `${asset.uri}-${indice}`,
-    uri: asset.uri,
-    nomeArquivo: asset.fileName ?? asset.uri.split("/").pop() ?? `video-${indice + 1}`,
-    duracaoMs: asset.duration ?? 0,
-  }));
+  return Promise.all(
+    resultado.assets.map(async (asset, indice) => ({
+      id: asset.assetId ?? `${asset.uri}-${indice}`,
+      uri: await resolverUriPersistente(asset),
+      nomeArquivo: asset.fileName ?? asset.uri.split("/").pop() ?? `video-${indice + 1}`,
+      duracaoMs: asset.duration ?? 0,
+    }))
+  );
+}
+
+/**
+ * Resolve a URI de verdade do arquivo, salva na pasta de vídeos do aparelho,
+ * em vez da URI que o seletor devolve por padrão no Android (`asset.uri`) —
+ * essa costuma apontar pra uma CÓPIA temporária em `cache/ImagePicker/...`,
+ * que o próprio Android pode apagar a qualquer momento (confirmado
+ * acontecendo bastante sob pouco espaço livre no aparelho: os frames que já
+ * tinham sido lidos com sucesso passavam a dar erro de arquivo não
+ * encontrado minutos depois). A URI resolvida pelo `assetId` (via
+ * expo-media-library) aponta pro arquivo real e persistente na galeria, não
+ * pra essa cópia temporária — não sofre esse problema.
+ */
+async function resolverUriPersistente(asset: ImagePicker.ImagePickerAsset): Promise<string> {
+  if (!asset.assetId) {
+    return asset.uri;
+  }
+  try {
+    return await new Asset(asset.assetId).getUri();
+  } catch {
+    return asset.uri;
+  }
 }
 
 async function paraVideoAsset(asset: Asset): Promise<VideoAsset> {

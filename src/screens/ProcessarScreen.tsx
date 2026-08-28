@@ -5,7 +5,7 @@ import { listarClientes } from "../db/clientesRepository";
 import { selecionarVideosDoDispositivo } from "../services/biblioteca";
 import { processarVideo } from "../services/videoProcessor";
 import { organizarVideo } from "../services/organizador";
-import { descreverDiagnostico } from "../services/decisao";
+import { descreverDiagnostico, decidirAlbuns } from "../services/decisao";
 import { garantirPermissaoGaleria, garantirPermissaoMidia } from "../services/permissoes";
 
 const CONFIG_PADRAO: ConfiguracaoReconhecimento = {
@@ -24,10 +24,10 @@ interface ItemProcessamento {
   video: VideoAsset;
   status: "pendente" | "processando" | "concluido" | "erro";
   progresso?: { atual: number; total: number };
-  /** Presente quando o vídeo foi de fato organizado (movido pro álbum do cliente). */
+  /** Álbum(ns) que o vídeo foi (ou iria, no modo teste) parar — mesma decisão em ambos os modos. */
   albuns?: string[];
-  /** Presente no modo teste (sem organizar) — resultado do reconhecimento, sem mover nada. */
-  resultadoTeste?: "reconhecido" | "nao_reconhecido";
+  /** true = modo "Testar" (nada foi movido); false/undefined = "Processar" de verdade. */
+  apenasTeste?: boolean;
   diagnostico?: string;
   mensagemErro?: string;
 }
@@ -50,6 +50,11 @@ export default function ProcessarScreen() {
         Alert.alert("Permissão necessária", "Autorize o acesso à galeria para escolher os vídeos.");
         return;
       }
+      // Pede essa permissão já aqui (não só antes de "Processar"): é ela que
+      // permite resolver a URI persistente de cada vídeo (evita depender da
+      // cópia temporária de cache que o seletor devolve, que o sistema pode
+      // apagar sozinho) — precisa estar concedida mesmo pra só "Testar".
+      await garantirPermissaoMidia();
       const videos = await selecionarVideosDoDispositivo();
       if (videos.length === 0) return;
 
@@ -123,9 +128,6 @@ export default function ProcessarScreen() {
           if (resultado.status === "erro") {
             throw new Error(resultado.mensagemErro ?? "Não foi possível processar o vídeo.");
           }
-          // Extraído numa constante à parte: o TypeScript não propaga o estreitamento
-          // de `resultado.status` (feito acima) pra dentro dos closures do `setItens` abaixo.
-          const statusReconhecimento = resultado.status;
           // Quando nenhum frame pôde ser lido, avisoLeitura já explica o motivo real —
           // melhor que "nenhum rosto detectado nos frames analisados" (que sugeriria
           // que os frames foram analisados e ninguém apareceu, não é o caso).
@@ -135,22 +137,19 @@ export default function ProcessarScreen() {
             const diagnostico = aviso ? `${diagnosticoBase} — atenção: ${aviso}` : diagnosticoBase;
             setItens((atual) =>
               atual.map((item, idx) =>
-                idx === i
-                  ? { ...item, status: "concluido", albuns, resultadoTeste: undefined, diagnostico }
-                  : item
+                idx === i ? { ...item, status: "concluido", albuns, apenasTeste: false, diagnostico } : item
               )
             );
           } else {
+            // Usa a MESMA função que decide de verdade (decidirAlbuns), aplicando o
+            // limiar — sem isso, o modo teste mostrava "reconhecido" mesmo quando a
+            // distância estava bem acima do limiar (bug: usava só "achou algum rosto
+            // parecido", sem checar se a distância realmente passava no limiar).
+            const albuns = decidirAlbuns(resultado.clientesReconhecidos, CONFIG_PADRAO);
             setItens((atual) =>
               atual.map((item, idx) =>
                 idx === i
-                  ? {
-                      ...item,
-                      status: "concluido",
-                      albuns: undefined,
-                      resultadoTeste: statusReconhecimento,
-                      diagnostico: diagnosticoBase,
-                    }
+                  ? { ...item, status: "concluido", albuns, apenasTeste: true, diagnostico: diagnosticoBase }
                   : item
               )
             );
@@ -249,13 +248,10 @@ function descreverStatus(item: ItemProcessamento): string {
       return item.progresso
         ? `analisando frame ${item.progresso.atual}/${item.progresso.total}...`
         : "analisando...";
-    case "concluido":
-      if (item.albuns) {
-        return `→ ${item.albuns.join(", ")}`;
-      }
-      return item.resultadoTeste === "reconhecido"
-        ? "teste: reconhecido (nada foi movido)"
-        : "teste: não reconhecido (nada foi movido)";
+    case "concluido": {
+      const seta = item.apenasTeste ? "(teste, nada movido) →" : "→";
+      return `${seta} ${item.albuns?.join(", ")}`;
+    }
     case "erro":
       return `erro: ${item.mensagemErro}`;
     default:
