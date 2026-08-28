@@ -111,9 +111,10 @@ export default function ClientesScreen() {
       }
       const itens = rostos.map((rosto, indice) => {
         const proximo = clientes.length > 0 ? encontrarMaisProximo(rosto.embedding, clientes) : null;
+        const alinhamento = rosto.alinhadoPorOlhos ? "alinhado pelos olhos" : "caixa bruta, sem os 2 olhos";
         const texto = !proximo
-          ? `Rosto ${indice + 1}: nenhum cliente cadastrado pra comparar.`
-          : `Rosto ${indice + 1}: mais parecido com ${proximo.candidato.nome} — distância ${proximo.distancia.toFixed(2)}`;
+          ? `Rosto ${indice + 1}: nenhum cliente cadastrado pra comparar. (${alinhamento})`
+          : `Rosto ${indice + 1}: mais parecido com ${proximo.candidato.nome} — distância ${proximo.distancia.toFixed(2)} (${alinhamento})`;
         return { recorteUri: rosto.recorteUri, texto };
       });
       setRostosTeste(itens);

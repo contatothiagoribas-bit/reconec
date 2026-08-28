@@ -6,7 +6,7 @@ import { toByteArray } from "base64-js";
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const jpeg = require("jpeg-js");
 import { CaixaRosto } from "./faceDetector";
-import { aplicarMargem } from "../utils/caixaRosto";
+import { aplicarMargem, calcularCaixaAlinhada } from "../utils/caixaRosto";
 
 // Tamanho de entrada esperado pelo modelo de embedding (padrão MobileFaceNet/FaceNet: 112x112).
 const TAMANHO_ENTRADA = 112;
@@ -45,6 +45,12 @@ export interface EmbeddingCalculado {
   embedding: number[];
   /** URI do recorte 112x112 realmente usado pra calcular o embedding — só pra diagnóstico visual. */
   recorteUri: string;
+  /**
+   * Se o recorte foi alinhado pela posição dos olhos (mais estável) ou caiu pro
+   * método antigo, de margem sobre a caixa bruta do detector (rosto de perfil,
+   * só um olho visível etc.) — só pra diagnóstico.
+   */
+  alinhadoPorOlhos: boolean;
 }
 
 /**
@@ -93,7 +99,8 @@ export async function calcularEmbedding(uriImagem: string, caixa: CaixaRosto): P
   const saidas = modelo.runSync([entrada.buffer as ArrayBuffer]);
   // A primeira (e única) saída do modelo é o vetor de embedding (ex.: 192 floats).
   const embedding = Array.from(new Float32Array(saidas[0]));
-  return { embedding, recorteUri: recorte.uri };
+  const alinhadoPorOlhos = Boolean(caixa.olhoEsquerdo && caixa.olhoDireito);
+  return { embedding, recorteUri: recorte.uri, alinhadoPorOlhos };
 }
 
 /**
@@ -107,6 +114,13 @@ async function calcularCaixaComMargemSegura(uriImagem: string, caixa: CaixaRosto
   try {
     const { largura, altura } = await obterDimensoesImagem(uriImagem);
     if (largura > 0 && altura > 0) {
+      // Prioriza alinhar pelos olhos (mais estável entre fotos da mesma pessoa
+      // — ver calcularCaixaAlinhada) quando o detector identificou os dois;
+      // cai pra margem sobre a caixa bruta quando não (ex.: rosto de perfil,
+      // só um olho visível).
+      if (caixa.olhoEsquerdo && caixa.olhoDireito) {
+        return calcularCaixaAlinhada(caixa.olhoEsquerdo, caixa.olhoDireito, largura, altura);
+      }
       return aplicarMargem(caixa, largura, altura);
     }
   } catch {

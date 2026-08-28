@@ -27,6 +27,8 @@ export interface RostoDetectado {
   caixa: { x: number; y: number; largura: number; altura: number };
   /** URI do recorte 112x112 realmente usado pra calcular o embedding — só pra diagnóstico visual. */
   recorteUri?: string;
+  /** Se o recorte foi alinhado pela posição dos olhos ou caiu pro método antigo (caixa bruta) — só diagnóstico. */
+  alinhadoPorOlhos?: boolean;
 }
 
 /** Resultado da comparação de um rosto com a base de clientes cadastrados. */

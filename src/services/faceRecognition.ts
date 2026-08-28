@@ -7,8 +7,8 @@ export async function reconhecerRostos(uriImagem: string): Promise<RostoDetectad
   const caixas = await detectarRostos(uriImagem);
   const rostos: RostoDetectado[] = [];
   for (const caixa of caixas) {
-    const { embedding, recorteUri } = await calcularEmbedding(uriImagem, caixa);
-    rostos.push({ embedding, caixa, recorteUri });
+    const { embedding, recorteUri, alinhadoPorOlhos } = await calcularEmbedding(uriImagem, caixa);
+    rostos.push({ embedding, caixa, recorteUri, alinhadoPorOlhos });
   }
   return rostos;
 }
