@@ -1,14 +1,20 @@
-import { calcularEmbeddingPrincipal } from "./faceRecognition";
+import { calcularEmbedding } from "./embeddingModel";
 import { mediaVetores } from "../utils/vectorMath";
 import { normalizarNomeCliente } from "../utils/fileNames";
 import { criarCliente } from "../db/clientesRepository";
-import { Cliente } from "../types";
+import { Cliente, FotoRegistro } from "../types";
 
 /**
  * Cadastra um novo cliente: calcula o embedding facial de cada foto enviada e
  * salva a média deles (mais robusta a ângulo/iluminação de uma foto isolada).
+ *
+ * Cada foto já vem com o rosto certo indicado (`FotoRegistro.caixa`, escolhido
+ * na tela de cadastro no momento de adicionar a foto) — importante quando a
+ * foto tem mais de uma pessoa: sem isso, pegar "o maior rosto da foto"
+ * automaticamente pode acabar calculando o embedding da pessoa errada, se ela
+ * aparecer maior/mais perto da câmera do que o cliente sendo cadastrado.
  */
-export async function cadastrarCliente(nome: string, fotos: string[]): Promise<Cliente> {
+export async function cadastrarCliente(nome: string, fotos: FotoRegistro[]): Promise<Cliente> {
   if (!nome.trim()) {
     throw new Error("Digite o nome do cliente");
   }
@@ -17,28 +23,28 @@ export async function cadastrarCliente(nome: string, fotos: string[]): Promise<C
   }
 
   const embeddings: number[][] = [];
-  let fotosSemRosto = 0;
+  let fotosComErro = 0;
 
   for (const foto of fotos) {
-    const embedding = await calcularEmbeddingPrincipal(foto);
-    if (embedding) {
+    try {
+      const { embedding } = await calcularEmbedding(foto.uri, foto.caixa);
       embeddings.push(embedding);
-    } else {
-      fotosSemRosto++;
+    } catch {
+      fotosComErro++;
     }
   }
 
   if (embeddings.length === 0) {
-    throw new Error("Não foi possível encontrar um rosto em nenhuma das fotos enviadas");
+    throw new Error("Não foi possível calcular o embedding de nenhuma das fotos enviadas");
   }
 
-  if (fotosSemRosto > 0) {
-    console.warn(`${fotosSemRosto} foto(s) ignorada(s) por não conter rosto detectável.`);
+  if (fotosComErro > 0) {
+    console.warn(`${fotosComErro} foto(s) ignorada(s) por erro ao calcular o embedding.`);
   }
 
   return criarCliente({
     nome: normalizarNomeCliente(nome),
-    fotos,
+    fotos: fotos.map((foto) => foto.uri),
     embedding: mediaVetores(embeddings),
   });
 }

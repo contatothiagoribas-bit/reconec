@@ -2,6 +2,18 @@
  * Tipos compartilhados do app.
  */
 
+import { CaixaRosto } from "../services/faceDetector";
+
+/**
+ * Uma foto de referência escolhida no cadastro, junto com qual rosto dela usar
+ * (a pessoa que está sendo cadastrada) — necessário quando a foto tem mais de
+ * uma pessoa, pra não acabar calculando o embedding da pessoa errada.
+ */
+export interface FotoRegistro {
+  uri: string;
+  caixa: CaixaRosto;
+}
+
 /** Cliente cadastrado, com o vetor facial calculado a partir das fotos de referência. */
 export interface Cliente {
   id: number;

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -9,21 +9,37 @@ import {
   StyleSheet,
   Alert,
   ActivityIndicator,
+  Modal,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
-import { Cliente } from "../types";
+import { Cliente, FotoRegistro } from "../types";
 import { listarClientes, removerCliente } from "../db/clientesRepository";
 import { cadastrarCliente } from "../services/cadastroCliente";
 import { garantirPermissaoCamera } from "../services/permissoes";
 import { norma, encontrarMaisProximo } from "../utils/vectorMath";
 import { reconhecerRostos } from "../services/faceRecognition";
+import { detectarRostos, CaixaRosto } from "../services/faceDetector";
+import { gerarMiniaturaRosto } from "../services/miniaturaRosto";
+
+interface OpcaoRosto {
+  caixa: CaixaRosto;
+  miniaturaUri: string;
+}
+
+interface EscolhaPendente {
+  uri: string;
+  opcoes: OpcaoRosto[];
+}
 
 export default function ClientesScreen() {
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [carregando, setCarregando] = useState(true);
   const [salvando, setSalvando] = useState(false);
   const [nome, setNome] = useState("");
-  const [fotos, setFotos] = useState<string[]>([]);
+  const [fotos, setFotos] = useState<FotoRegistro[]>([]);
+  const [processandoFotos, setProcessandoFotos] = useState(false);
+  const [escolhaPendente, setEscolhaPendente] = useState<EscolhaPendente | null>(null);
+  const resolverEscolhaRef = useRef<((caixa: CaixaRosto | null) => void) | null>(null);
   const [testando, setTestando] = useState(false);
   const [resultadoTeste, setResultadoTeste] = useState<string | null>(null);
   const [rostosTeste, setRostosTeste] = useState<{ recorteUri?: string; texto: string }[]>([]);
@@ -41,6 +57,52 @@ export default function ClientesScreen() {
     carregar();
   }, [carregar]);
 
+  /**
+   * Detecta os rostos da foto recém-adicionada. Se tiver só um, usa ele direto.
+   * Se tiver mais de um (ex.: outra pessoa aparece atrás/do lado), pede pro
+   * usuário escolher qual é o cliente antes de adicionar — sem isso, o cálculo
+   * do embedding podia acabar pegando o rosto errado (o de maior destaque na
+   * foto, não necessariamente o do cliente sendo cadastrado).
+   */
+  async function processarFotoAdicionada(uri: string): Promise<void> {
+    let caixas: CaixaRosto[] = [];
+    try {
+      caixas = await detectarRostos(uri);
+    } catch {
+      // segue com lista vazia -> tratado abaixo como "nenhum rosto"
+    }
+
+    if (caixas.length === 0) {
+      Alert.alert("Nenhum rosto encontrado", "Essa foto não tem um rosto detectável e não foi adicionada.");
+      return;
+    }
+
+    if (caixas.length === 1) {
+      setFotos((atual) => [...atual, { uri, caixa: caixas[0] }]);
+      return;
+    }
+
+    const opcoes = await Promise.all(
+      caixas.map(async (caixa): Promise<OpcaoRosto> => ({
+        caixa,
+        miniaturaUri: await gerarMiniaturaRosto(uri, caixa),
+      }))
+    );
+    const escolhida = await new Promise<CaixaRosto | null>((resolve) => {
+      resolverEscolhaRef.current = resolve;
+      setEscolhaPendente({ uri, opcoes });
+    });
+    if (escolhida) {
+      setFotos((atual) => [...atual, { uri, caixa: escolhida }]);
+    }
+  }
+
+  function escolherRostoPendente(caixa: CaixaRosto | null) {
+    resolverEscolhaRef.current?.(caixa);
+    resolverEscolhaRef.current = null;
+    setEscolhaPendente(null);
+  }
+
   async function escolherFotoDaGaleria() {
     const resultado = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
@@ -48,8 +110,14 @@ export default function ClientesScreen() {
       allowsMultipleSelection: true,
       selectionLimit: 5,
     });
-    if (!resultado.canceled) {
-      setFotos((atual) => [...atual, ...resultado.assets.map((a) => a.uri)]);
+    if (resultado.canceled) return;
+    setProcessandoFotos(true);
+    try {
+      for (const asset of resultado.assets) {
+        await processarFotoAdicionada(asset.uri);
+      }
+    } finally {
+      setProcessandoFotos(false);
     }
   }
 
@@ -60,8 +128,12 @@ export default function ClientesScreen() {
       return;
     }
     const resultado = await ImagePicker.launchCameraAsync({ quality: 0.9 });
-    if (!resultado.canceled) {
-      setFotos((atual) => [...atual, resultado.assets[0].uri]);
+    if (resultado.canceled) return;
+    setProcessandoFotos(true);
+    try {
+      await processarFotoAdicionada(resultado.assets[0].uri);
+    } finally {
+      setProcessandoFotos(false);
     }
   }
 
@@ -157,20 +229,27 @@ export default function ClientesScreen() {
         </TouchableOpacity>
       </View>
 
+      {processandoFotos && (
+        <View style={estilos.linhaProcessandoFotos}>
+          <ActivityIndicator size="small" />
+          <Text style={estilos.textoProcessandoFotos}>Detectando rosto na foto...</Text>
+        </View>
+      )}
+
       {fotos.length > 0 && (
         <FlatList
           horizontal
           data={fotos}
-          keyExtractor={(uri) => uri}
+          keyExtractor={(foto) => foto.uri}
           style={estilos.listaFotos}
-          renderItem={({ item }) => <Image source={{ uri: item }} style={estilos.miniatura} />}
+          renderItem={({ item }) => <Image source={{ uri: item.uri }} style={estilos.miniatura} />}
         />
       )}
 
       <TouchableOpacity
-        style={[estilos.botaoPrimario, salvando && estilos.botaoDesabilitado]}
+        style={[estilos.botaoPrimario, (salvando || processandoFotos) && estilos.botaoDesabilitado]}
         onPress={salvar}
-        disabled={salvando}
+        disabled={salvando || processandoFotos}
       >
         {salvando ? (
           <ActivityIndicator color="#fff" />
@@ -229,6 +308,25 @@ export default function ClientesScreen() {
           }
         />
       )}
+
+      <Modal visible={escolhaPendente !== null} transparent animationType="fade">
+        <View style={estilos.fundoModal}>
+          <View style={estilos.caixaModal}>
+            <Text style={estilos.tituloModal}>Essa foto tem mais de uma pessoa</Text>
+            <Text style={estilos.ajudaModal}>Toque no rosto do cliente que está sendo cadastrado.</Text>
+            <View style={estilos.grudeOpcoes}>
+              {escolhaPendente?.opcoes.map((opcao, indice) => (
+                <TouchableOpacity key={indice} onPress={() => escolherRostoPendente(opcao.caixa)}>
+                  <Image source={{ uri: opcao.miniaturaUri }} style={estilos.miniaturaOpcao} />
+                </TouchableOpacity>
+              ))}
+            </View>
+            <TouchableOpacity onPress={() => escolherRostoPendente(null)} style={estilos.linkCancelarModal}>
+              <Text style={estilos.textoLinkCancelarModal}>Nenhuma dessas — não usar essa foto</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -301,4 +399,20 @@ const estilos = StyleSheet.create({
   },
   miniaturaRecorte: { width: 56, height: 56, borderRadius: 8, backgroundColor: "#ddd" },
   textoResultadoRosto: { flex: 1, color: "#333", fontSize: 13 },
+  linhaProcessandoFotos: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 12 },
+  textoProcessandoFotos: { color: "#666", fontSize: 13 },
+  fundoModal: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 24,
+  },
+  caixaModal: { backgroundColor: "#fff", borderRadius: 12, padding: 20, width: "100%" },
+  tituloModal: { fontSize: 16, fontWeight: "600", marginBottom: 4 },
+  ajudaModal: { color: "#666", fontSize: 13, marginBottom: 16 },
+  grudeOpcoes: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginBottom: 16 },
+  miniaturaOpcao: { width: 90, height: 90, borderRadius: 8, backgroundColor: "#ddd" },
+  linkCancelarModal: { alignSelf: "center" },
+  textoLinkCancelarModal: { color: "#d33", fontSize: 13 },
 });
