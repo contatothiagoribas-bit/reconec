@@ -12,11 +12,13 @@ import { apagarArquivoPermanente } from "../services/armazenamentoPermanente";
 const CONFIG_PADRAO: ConfiguracaoReconhecimento = {
   // 0.5 era o limiar do app de referência do modelo, mas foi calibrado pra um
   // alinhamento de rosto completo (5 pontos); com o alinhamento pelos 2 olhos
-  // que este app usa, matches genuínos e nítidos testados na prática deram
-  // 0.65-0.84 de distância — 0.5 rejeitaria até esses. 0.9 mantém folga acima
-  // desses matches confirmados e abaixo dos casos de rosto pequeno/borrado/de
-  // perfil observados (1.15+), que continuam sendo rejeitados como deveriam.
-  limiarDistancia: 0.9,
+  // que este app usa, matches genuínos confirmados na prática já deram até
+  // 0.94 de distância (frame de drone com ângulo/distância ruim) — com 0.9
+  // esse caso concreto (Jess, vídeo 1000092240) ficava de fora, indo pra
+  // Não Reconhecidos por uma margem de só 0.04. Casos confirmados de pessoa
+  // diferente ficam a partir de 1.0+, então 0.97 mantém folga clara abaixo
+  // disso e cobre a faixa real observada pra matches genuínos.
+  limiarDistancia: 0.97,
   albumNaoReconhecidos: "Nao_Reconhecidos",
   estrategia: "todas_correspondencias",
 };
