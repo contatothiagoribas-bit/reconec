@@ -7,6 +7,7 @@ import { processarVideo } from "../services/videoProcessor";
 import { organizarVideo } from "../services/organizador";
 import { descreverDiagnostico, decidirAlbuns } from "../services/decisao";
 import { garantirPermissaoGaleria, garantirPermissaoMidia } from "../services/permissoes";
+import { apagarArquivoPermanente } from "../services/armazenamentoPermanente";
 
 const CONFIG_PADRAO: ConfiguracaoReconhecimento = {
   // 0.5 era o limiar do app de referência do modelo, mas foi calibrado pra um
@@ -50,11 +51,6 @@ export default function ProcessarScreen() {
         Alert.alert("Permissão necessária", "Autorize o acesso à galeria para escolher os vídeos.");
         return;
       }
-      // Pede essa permissão já aqui (não só antes de "Processar"): é ela que
-      // permite resolver a URI persistente de cada vídeo (evita depender da
-      // cópia temporária de cache que o seletor devolve, que o sistema pode
-      // apagar sozinho) — precisa estar concedida mesmo pra só "Testar".
-      await garantirPermissaoMidia();
       const videos = await selecionarVideosDoDispositivo();
       if (videos.length === 0) return;
 
@@ -82,6 +78,11 @@ export default function ProcessarScreen() {
   }
 
   function limparSelecao() {
+    // Cada vídeo selecionado foi copiado pro app (ver biblioteca.ts) — sem
+    // apagar essas cópias aqui, elas ficariam ocupando espaço pra sempre se o
+    // usuário nunca chegar a apertar "Processar" (que apaga a cópia sozinho
+    // depois de organizar de verdade).
+    itens.forEach((item) => apagarArquivoPermanente(item.video.uri));
     setItens([]);
   }
 
@@ -134,6 +135,10 @@ export default function ProcessarScreen() {
           const diagnosticoBase = resultado.avisoLeitura ?? descreverDiagnostico(resultado.clientesReconhecidos);
           if (organizar) {
             const { albuns, aviso } = await organizarVideo(resultado, CONFIG_PADRAO);
+            // O vídeo real já foi importado pro álbum do cliente — a cópia
+            // temporária que o app fez na seleção (ver biblioteca.ts) não
+            // serve mais pra nada a partir daqui.
+            apagarArquivoPermanente(resultado.video.uri);
             const diagnostico = aviso ? `${diagnosticoBase} — atenção: ${aviso}` : diagnosticoBase;
             setItens((atual) =>
               atual.map((item, idx) =>

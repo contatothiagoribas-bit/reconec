@@ -72,7 +72,7 @@ export default function ClientesScreen() {
     // miniatura do cliente cadastrado "sumia" ao reabrir o app.
     let uri = uriOriginal;
     try {
-      uri = await copiarParaArmazenamentoPermanente(uriOriginal);
+      uri = await copiarParaArmazenamentoPermanente(uriOriginal, "clientes");
     } catch {
       // se a cópia falhar, segue com a URI original — mais seguro tentar
       // usar mesmo assim do que descartar a foto inteira por causa disso.

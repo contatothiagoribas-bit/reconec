@@ -1,6 +1,9 @@
 import { Query, AssetField, MediaType, Asset } from "expo-media-library";
 import * as ImagePicker from "expo-image-picker";
 import { VideoAsset } from "../types";
+import { copiarParaArmazenamentoPermanente } from "./armazenamentoPermanente";
+
+const PASTA_VIDEOS_TEMP = "videos_temp";
 
 /** Lista os vídeos do dispositivo disponíveis para processar (do mais recente ao mais antigo). */
 export async function listarVideosDoDispositivo(limite = 100): Promise<VideoAsset[]> {
@@ -40,7 +43,7 @@ export async function selecionarVideosDoDispositivo(): Promise<VideoAsset[]> {
   return Promise.all(
     resultado.assets.map(async (asset, indice) => ({
       id: asset.assetId ?? `${asset.uri}-${indice}`,
-      uri: await resolverUriPersistente(asset),
+      uri: await garantirUriEstavel(asset),
       nomeArquivo: asset.fileName ?? asset.uri.split("/").pop() ?? `video-${indice + 1}`,
       duracaoMs: asset.duration ?? 0,
     }))
@@ -48,22 +51,23 @@ export async function selecionarVideosDoDispositivo(): Promise<VideoAsset[]> {
 }
 
 /**
- * Resolve a URI de verdade do arquivo, salva na pasta de vídeos do aparelho,
- * em vez da URI que o seletor devolve por padrão no Android (`asset.uri`) —
+ * Copia o vídeo pra um diretório permanente do próprio app assim que é
+ * selecionado, em vez de usar a URI que o seletor devolve (`asset.uri`) —
  * essa costuma apontar pra uma CÓPIA temporária em `cache/ImagePicker/...`,
  * que o próprio Android pode apagar a qualquer momento (confirmado
- * acontecendo bastante sob pouco espaço livre no aparelho: os frames que já
- * tinham sido lidos com sucesso passavam a dar erro de arquivo não
- * encontrado minutos depois). A URI resolvida pelo `assetId` (via
- * expo-media-library) aponta pro arquivo real e persistente na galeria, não
- * pra essa cópia temporária — não sofre esse problema.
+ * acontecendo bastante sob pouco espaço livre: os frames que já tinham sido
+ * lidos com sucesso passavam a dar erro de arquivo não encontrado minutos
+ * depois — e isso persistiu mesmo tentando resolver a URI "de verdade" do
+ * arquivo pelo assetId via expo-media-library, que não funcionou de forma
+ * confiável no seletor de galeria deste aparelho). Copiar não depende de
+ * nenhuma API de terceiro cooperando — só precisa conseguir ler o arquivo
+ * uma vez, logo depois de selecionado, quando ele com certeza ainda existe.
+ * Se a cópia falhar por qualquer motivo, segue com a URI original — mais
+ * seguro tentar usar mesmo assim do que descartar o vídeo inteiro.
  */
-async function resolverUriPersistente(asset: ImagePicker.ImagePickerAsset): Promise<string> {
-  if (!asset.assetId) {
-    return asset.uri;
-  }
+async function garantirUriEstavel(asset: ImagePicker.ImagePickerAsset): Promise<string> {
   try {
-    return await new Asset(asset.assetId).getUri();
+    return await copiarParaArmazenamentoPermanente(asset.uri, PASTA_VIDEOS_TEMP);
   } catch {
     return asset.uri;
   }
