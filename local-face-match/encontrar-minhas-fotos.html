@@ -5163,6 +5163,10 @@ return a / b;`,aie=`
 <script>
 const MODEL_URL = 'https://raw.githubusercontent.com/vladmandic/face-api/master/model';
 const THRESHOLD = 0.6;
+// SsdMobilenetv1 é mais confiável que o TinyFaceDetector em foto real (com
+// fundo, ângulo variado, iluminação de rua/praia) — a mesma configuração
+// usada no script de terminal.
+const detectorOptions = () => new faceapi.SsdMobilenetv1Options({ minConfidence: 0.5 });
 
 const baseInput = document.getElementById('baseInput');
 const refInput = document.getElementById('refInput');
@@ -5196,7 +5200,7 @@ refInput.addEventListener('change', () => {
 async function carregarModelos() {
   try {
     setStatus('Carregando reconhecimento facial (só na primeira vez)…');
-    await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
+    await faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL);
     await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
     await faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL);
     btnComparar.disabled = false;
@@ -5217,17 +5221,24 @@ function carregarImagem(file) {
   });
 }
 
-async function calcularDescriptor(img) {
-  const deteccao = await faceapi
-    .detectSingleFace(img, new faceapi.TinyFaceDetectorOptions())
+// Detecta TODOS os rostos da foto e retorna a assinatura (descriptor) de
+// cada um. Sem "plano B" que calcula em cima da foto inteira quando não
+// acha rosto — isso já causou falso positivo em massa em foto real (a
+// assinatura de uma foto sem rosto detectado direito é lixo, e lixo
+// comparado com lixo pode "bater" com qualquer coisa).
+async function detectarRostos(img) {
+  const deteccoes = await faceapi
+    .detectAllFaces(img, detectorOptions())
     .withFaceLandmarks()
-    .withFaceDescriptor();
-  if (deteccao) return deteccao.descriptor;
-  try {
-    return await faceapi.nets.faceRecognitionNet.computeFaceDescriptor(img);
-  } catch (e) {
-    return null;
-  }
+    .withFaceDescriptors();
+  return deteccoes.map((d) => ({ descriptor: d.descriptor, area: d.detection.box.width * d.detection.box.height }));
+}
+
+// Pra selfie de referência: fica com o maior rosto (o de quem tirou a foto).
+async function detectarRostoPrincipal(img) {
+  const rostos = await detectarRostos(img);
+  if (rostos.length === 0) return null;
+  return rostos.reduce((a, b) => (a.area > b.area ? a : b)).descriptor;
 }
 
 function svgCheckBadge() {
@@ -5247,9 +5258,9 @@ async function comparar() {
 
   setStatus('Lendo a sua selfie…');
   const refImg = await carregarImagem(arquivosRef[0]);
-  const refDescriptor = await calcularDescriptor(refImg);
+  const refDescriptor = await detectarRostoPrincipal(refImg);
   if (!refDescriptor) {
-    setStatus('Não encontrei nenhum rosto na selfie. Tente outra foto.', true);
+    setStatus('Não encontrei nenhum rosto na selfie. Tente outra foto, de frente e bem iluminada.', true);
     btnComparar.disabled = false;
     return;
   }
@@ -5259,8 +5270,11 @@ async function comparar() {
     const arquivo = arquivosBase[i];
     setStatus(`Comparando (${i + 1}/${arquivosBase.length})…`);
     const img = await carregarImagem(arquivo);
-    const descriptor = await calcularDescriptor(img);
-    const distancia = descriptor ? faceapi.euclideanDistance(refDescriptor, descriptor) : null;
+    const rostos = await detectarRostos(img);
+    // foto pode ter mais de uma pessoa — fica com a distância do rosto mais parecido
+    const distancia = rostos.length > 0
+      ? Math.min(...rostos.map((r) => faceapi.euclideanDistance(refDescriptor, r.descriptor)))
+      : null;
     linhas.push({ arquivo, distancia, url: img.src });
   }
 

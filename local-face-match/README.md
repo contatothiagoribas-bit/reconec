@@ -12,28 +12,30 @@ cd local-face-match
 npm install
 ```
 
-1. Coloque uma foto de cada cliente na pasta `base/` (uma foto por
-   arquivo — o nome do arquivo pode ser o nome do cliente, ex:
-   `joao.jpg`, `maria.jpg`).
-2. Coloque a foto que você quer identificar na pasta `referencia/`
-   (só uma foto).
+1. Coloque as fotos do evento na pasta `base/` (pode ter mais de uma
+   pessoa em cada foto — o script detecta todos os rostos).
+2. Coloque a selfie da pessoa que você quer achar na pasta
+   `referencia/` (só uma foto).
 3. Rode:
 
    ```bash
    npm run match
    ```
 
-O script mostra, pra cada foto da base, a distância até a foto de
-referência (quanto menor, mais parecido) e marca quais bateram dentro
-do limiar. As fotos que bateram são copiadas pra `resultados/`.
+O script mostra, pra cada foto da base, quantos rostos achou e a
+distância até a selfie de referência (quanto menor, mais parecido —
+usa o rosto mais parecido da foto, caso tenha mais de uma pessoa) e
+marca quais bateram dentro do limiar. As fotos que bateram são
+copiadas pra `resultados/`.
 
 ```
-arquivo                 distância   match?
-------------------------------------------------
-joao.jpg                0.5318      ✅ SIM
-maria.jpg               0.8596      —
+arquivo                 rostos   distância   match?
+--------------------------------------------------------
+grupo4.jpg              6        0.4161      ✅ SIM
+grupo3.jpg              5        0.4914      ✅ SIM
+outra_foto.jpg          1        0.7342      —
 
-✅ Cliente encontrado em 1 foto(s) da base: joao.jpg
+✅ Cliente encontrado em 2 foto(s) da base: grupo4.jpg, grupo3.jpg
 ```
 
 ## Ajustando o limiar
@@ -44,16 +46,26 @@ diminua; se estiver perdendo fotos que deveriam bater, aumente.
 
 ## Como funciona
 
-- **Detecção do rosto**: `TinyFaceDetector` (`@vladmandic/face-api`) —
-  funciona bem em foto normal, com fundo/corpo ao redor.
-- **Assinatura facial**: a rede de reconhecimento converte o rosto
+- **Detecção do rosto**: `SsdMobilenetv1` (`@vladmandic/face-api`) —
+  mais confiável que o `TinyFaceDetector` em foto real (fundo, ângulo
+  variado, iluminação de rua/praia). Detecta **todos** os rostos da
+  foto, não só um — importante porque uma foto de evento costuma ter
+  mais de uma pessoa.
+- **Assinatura facial**: a rede de reconhecimento converte cada rosto
   alinhado num vetor de 128 números (o "descriptor"). Duas fotos da
   mesma pessoa geram vetores próximos; de pessoas diferentes, vetores
   distantes.
-- **Comparação**: distância euclidiana entre os vetores.
-- Se nenhum rosto é detectado numa foto (ex: já vem recortada bem
-  rente ao rosto, sem contexto ao redor), o script tenta calcular a
-  assinatura direto em cima da imagem inteira, como plano B.
+- **Comparação**: distância euclidiana entre os vetores. Quando a foto
+  da base tem mais de um rosto, usa a menor distância entre eles (o
+  mais parecido com a referência).
+- Se **nenhum** rosto é detectado numa foto, ela é reportada como tal
+  e **não entra na comparação** — antes o script tentava calcular a
+  assinatura em cima da imagem inteira como plano B nesse caso, o que
+  causava falso positivo em massa com foto real (a assinatura de uma
+  imagem sem rosto detectado direito não tem significado, e comparações
+  sem significado podem "bater" com qualquer coisa). Se uma pessoa que
+  devia aparecer numa foto está sendo reportada como "0 rostos", o
+  problema é a foto (iluminação, ângulo, resolução) — tente outra.
 
 Tudo roda local, sem internet e sem mandar nenhuma foto pra fora da
 sua máquina (os modelos já vêm com o pacote `@vladmandic/face-api`,
