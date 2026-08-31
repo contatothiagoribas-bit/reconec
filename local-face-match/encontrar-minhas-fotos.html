@@ -1,0 +1,288 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Encontrar minhas fotos — Nascer do Sol Copacabana</title>
+<script src="https://raw.githubusercontent.com/vladmandic/face-api/master/dist/face-api.js"></script>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&family=Manrope:wght@400;500;600;700;800&display=swap">
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: oklch(97.5% 0.014 85);
+    color: oklch(24% 0.03 250);
+    font-family: 'Manrope', -apple-system, 'Segoe UI', sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  h1, h2, h3, .display {
+    font-family: 'Baloo 2', 'Segoe UI Rounded', system-ui, sans-serif;
+    font-weight: 700; line-height: 1.08; margin: 0;
+  }
+  p { margin: 0; }
+  .container { max-width: 640px; margin: 0 auto; padding: 0 20px 60px; }
+  header { padding: 22px 0; border-bottom: 1px solid oklch(24% 0.03 250 / 0.08); margin-bottom: 8px; }
+  .header-inner { max-width: 640px; margin: 0 auto; padding: 0 20px; display: flex; align-items: center; gap: 10px; }
+  .logo-badge {
+    width: 38px; height: 38px; border-radius: 11px;
+    background: linear-gradient(135deg, #F2793C, oklch(85% 0.16 85));
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  }
+  .card {
+    background: white; border-radius: 22px; padding: 24px;
+    box-shadow: 0 1px 2px oklch(24% 0.03 250 / 0.06), 0 12px 32px oklch(24% 0.03 250 / 0.07);
+    margin-bottom: 20px;
+  }
+  .card h2 { font-size: 16px; margin-bottom: 4px; }
+  .card .hint { font-size: 13px; color: oklch(45% 0.02 250); margin-bottom: 14px; }
+  .drop {
+    display: flex; align-items: center; gap: 14px; padding: 16px;
+    border: 2px dashed oklch(24% 0.03 250 / 0.18); border-radius: 16px;
+    cursor: pointer; position: relative;
+  }
+  .drop input[type="file"] {
+    position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;
+  }
+  .drop .icon-badge {
+    width: 48px; height: 48px; border-radius: 999px; background: oklch(94% 0.03 235);
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  }
+  .drop.sunset .icon-badge { background: oklch(91% 0.05 45); }
+  .drop .label { font-weight: 700; font-size: 15px; }
+  .drop .sub { font-size: 12.5px; color: oklch(45% 0.02 250); margin-top: 2px; }
+  .btn {
+    display: flex; align-items: center; justify-content: center; gap: 10px;
+    font-family: 'Baloo 2', sans-serif; font-weight: 600; font-size: 16px;
+    padding: 15px 28px; border-radius: 999px; border: none; cursor: pointer;
+    width: 100%; color: white;
+    background: linear-gradient(135deg, #F2793C, oklch(76% 0.18 60));
+    box-shadow: 0 10px 22px oklch(65% 0.19 45 / 0.3);
+  }
+  .btn:disabled { opacity: 0.5; cursor: default; box-shadow: none; }
+  #status { font-size: 13.5px; color: oklch(45% 0.02 250); margin-top: 12px; min-height: 18px; text-align: center; white-space: pre-line; }
+  #status.erro { color: #b3261e; font-weight: 700; }
+  #resultCard { display: none; }
+  .result-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+  .result-count { font-size: 12px; font-weight: 800; color: #F2793C; background: oklch(90% 0.05 45); padding: 4px 10px; border-radius: 999px; }
+  .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+  .photo {
+    aspect-ratio: 1; border-radius: 14px; position: relative; overflow: hidden; background: oklch(93% 0.01 85);
+  }
+  .photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .photo.nao-encontrado img { opacity: 0.35; filter: grayscale(60%); }
+  .photo .badge { position: absolute; top: 6px; right: 6px; }
+  .photo .dist { position: absolute; bottom: 6px; left: 6px; background: oklch(20% 0.03 250 / 0.6); color: white; font-size: 10.5px; font-weight: 700; padding: 2px 7px; border-radius: 999px; }
+  .rodape { font-size: 12px; color: oklch(50% 0.02 250); text-align: center; margin-top: 22px; line-height: 1.6; display: flex; align-items: center; justify-content: center; gap: 8px; }
+</style>
+</head>
+<body>
+
+<svg style="position:absolute;width:0;height:0;overflow:hidden">
+  <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/></symbol>
+  <symbol id="i-upload-cloud" viewBox="0 0 24 24"><path d="M7.2 17.5a4 4 0 0 1-.4-7.98A5.5 5.5 0 0 1 17.3 9a4 4 0 0 1-.3 8H7.2Z"/><path d="M12 20v-7M9.3 15.7 12 13l2.7 2.7"/></symbol>
+  <symbol id="i-face-scan" viewBox="0 0 24 24"><path d="M4 8V5.8A1.8 1.8 0 0 1 5.8 4H8"/><path d="M16 4h2.2A1.8 1.8 0 0 1 20 5.8V8"/><path d="M4 16v2.2A1.8 1.8 0 0 0 5.8 20H8"/><path d="M20 16v2.2a1.8 1.8 0 0 1-1.8 1.8H16"/><circle cx="12" cy="10.3" r="2.3"/><path d="M8.2 17c.9-2 2.6-3 3.8-3s2.9 1 3.8 3"/></symbol>
+  <symbol id="i-shield-check" viewBox="0 0 24 24"><path d="M12 3.2 19 6v6c0 4.6-3 7.6-7 8.8-4-1.2-7-4.2-7-8.8V6l7-2.8Z"/><path d="M8.7 12.3 11 14.6l4.3-4.6"/></symbol>
+</svg>
+
+<header>
+  <div class="header-inner">
+    <div class="logo-badge">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><use href="#i-sun"/></svg>
+    </div>
+    <div>
+      <div class="display" style="font-size:17px; color:#12688C;">Nascer do Sol</div>
+      <div style="font-size:10px; font-weight:800; letter-spacing:0.14em; color: oklch(45% 0.02 250);">COPACABANA</div>
+    </div>
+  </div>
+</header>
+
+<div class="container">
+  <div style="text-align:center; margin: 20px 0 24px;">
+    <h1 style="font-size:26px;">Encontrar minhas fotos</h1>
+    <p style="font-size:14.5px; color: oklch(45% 0.02 250); margin-top:8px;">Envie as fotos do evento e a sua selfie — a gente acha as suas na hora.</p>
+  </div>
+
+  <div class="card">
+    <h2>1. Fotos do evento</h2>
+    <div class="hint">As fotos publicadas no dia (pode selecionar várias de uma vez).</div>
+    <label class="drop">
+      <input type="file" id="baseInput" accept="image/*" multiple>
+      <div class="icon-badge">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#12688C" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><use href="#i-upload-cloud"/></svg>
+      </div>
+      <div>
+        <div class="label" id="baseLabel">Escolher fotos</div>
+        <div class="sub" id="baseSub">Nenhuma foto selecionada</div>
+      </div>
+    </label>
+  </div>
+
+  <div class="card">
+    <h2>2. Sua selfie</h2>
+    <div class="hint">De frente, com boa luz.</div>
+    <label class="drop sunset">
+      <input type="file" id="refInput" accept="image/*">
+      <div class="icon-badge">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#F2793C" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><use href="#i-face-scan"/></svg>
+      </div>
+      <div>
+        <div class="label" id="refLabel">Tire ou envie uma selfie</div>
+        <div class="sub" id="refSub">Nenhuma foto selecionada</div>
+      </div>
+    </label>
+  </div>
+
+  <button class="btn" id="btnComparar" disabled>Carregando reconhecimento facial…</button>
+  <div id="status"></div>
+
+  <div class="card" id="resultCard">
+    <div class="result-head">
+      <h2 style="margin:0;">Suas fotos</h2>
+      <span class="result-count" id="resultCount">0 fotos</span>
+    </div>
+    <div class="grid" id="grid"></div>
+  </div>
+
+  <div class="rodape">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><use href="#i-shield-check"/></svg>
+    Roda no seu navegador — nenhuma foto sai da sua máquina
+  </div>
+</div>
+
+<script>
+const MODEL_URL = 'https://raw.githubusercontent.com/vladmandic/face-api/master/model';
+const THRESHOLD = 0.6;
+
+const baseInput = document.getElementById('baseInput');
+const refInput = document.getElementById('refInput');
+const baseLabel = document.getElementById('baseLabel');
+const baseSub = document.getElementById('baseSub');
+const refLabel = document.getElementById('refLabel');
+const refSub = document.getElementById('refSub');
+const btnComparar = document.getElementById('btnComparar');
+const statusEl = document.getElementById('status');
+const resultCard = document.getElementById('resultCard');
+const resultCount = document.getElementById('resultCount');
+const grid = document.getElementById('grid');
+
+function setStatus(msg, isErro) {
+  statusEl.textContent = msg || '';
+  statusEl.className = isErro ? 'erro' : '';
+}
+
+baseInput.addEventListener('change', () => {
+  const n = baseInput.files.length;
+  baseLabel.textContent = n ? `${n} foto${n > 1 ? 's' : ''} selecionada${n > 1 ? 's' : ''}` : 'Escolher fotos';
+  baseSub.textContent = n ? Array.from(baseInput.files).map((f) => f.name).join(', ') : 'Nenhuma foto selecionada';
+});
+
+refInput.addEventListener('change', () => {
+  const f = refInput.files[0];
+  refLabel.textContent = f ? 'Selfie selecionada' : 'Tire ou envie uma selfie';
+  refSub.textContent = f ? f.name : 'Nenhuma foto selecionada';
+});
+
+async function carregarModelos() {
+  try {
+    setStatus('Carregando reconhecimento facial (só na primeira vez)…');
+    await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
+    await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
+    await faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL);
+    btnComparar.disabled = false;
+    btnComparar.textContent = 'Encontrar minhas fotos';
+    setStatus('');
+  } catch (e) {
+    setStatus('Não consegui carregar o reconhecimento facial. Confira sua conexão e recarregue a página.', true);
+    console.error(e);
+  }
+}
+
+function carregarImagem(file) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    img.src = URL.createObjectURL(file);
+  });
+}
+
+async function calcularDescriptor(img) {
+  const deteccao = await faceapi
+    .detectSingleFace(img, new faceapi.TinyFaceDetectorOptions())
+    .withFaceLandmarks()
+    .withFaceDescriptor();
+  if (deteccao) return deteccao.descriptor;
+  try {
+    return await faceapi.nets.faceRecognitionNet.computeFaceDescriptor(img);
+  } catch (e) {
+    return null;
+  }
+}
+
+function svgCheckBadge() {
+  return `<svg width="20" height="20" viewBox="0 0 24 24" class="badge"><circle cx="12" cy="12" r="10" fill="#F2793C"/><path d="M7 12.5l3 3 7-7" stroke="white" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+}
+
+async function comparar() {
+  const arquivosBase = Array.from(baseInput.files);
+  const arquivosRef = Array.from(refInput.files);
+
+  if (arquivosBase.length === 0) { setStatus('Selecione as fotos do evento.', true); return; }
+  if (arquivosRef.length === 0) { setStatus('Selecione a sua selfie.', true); return; }
+
+  btnComparar.disabled = true;
+  resultCard.style.display = 'none';
+  grid.innerHTML = '';
+
+  setStatus('Lendo a sua selfie…');
+  const refImg = await carregarImagem(arquivosRef[0]);
+  const refDescriptor = await calcularDescriptor(refImg);
+  if (!refDescriptor) {
+    setStatus('Não encontrei nenhum rosto na selfie. Tente outra foto.', true);
+    btnComparar.disabled = false;
+    return;
+  }
+
+  const linhas = [];
+  for (let i = 0; i < arquivosBase.length; i++) {
+    const arquivo = arquivosBase[i];
+    setStatus(`Comparando (${i + 1}/${arquivosBase.length})…`);
+    const img = await carregarImagem(arquivo);
+    const descriptor = await calcularDescriptor(img);
+    const distancia = descriptor ? faceapi.euclideanDistance(refDescriptor, descriptor) : null;
+    linhas.push({ arquivo, distancia, url: img.src });
+  }
+
+  linhas.sort((a, b) => {
+    if (a.distancia === null) return 1;
+    if (b.distancia === null) return -1;
+    return a.distancia - b.distancia;
+  });
+
+  const encontradas = linhas.filter((l) => l.distancia !== null && l.distancia < THRESHOLD);
+  resultCount.textContent = `${encontradas.length} foto${encontradas.length === 1 ? '' : 's'}`;
+
+  for (const linha of linhas) {
+    const isMatch = linha.distancia !== null && linha.distancia < THRESHOLD;
+    const div = document.createElement('div');
+    div.className = 'photo' + (isMatch ? '' : ' nao-encontrado');
+    div.innerHTML = `
+      <img src="${linha.url}" alt="${linha.arquivo.name}">
+      ${isMatch ? svgCheckBadge() : ''}
+      <span class="dist">${linha.distancia === null ? 'sem rosto' : linha.distancia.toFixed(2)}</span>
+    `;
+    grid.appendChild(div);
+  }
+
+  resultCard.style.display = 'block';
+  setStatus(encontradas.length > 0
+    ? `✅ Encontramos ${encontradas.length} foto${encontradas.length === 1 ? '' : 's'} com você.`
+    : '❌ Não encontramos nenhuma foto com você nesse evento.');
+  btnComparar.disabled = false;
+}
+
+btnComparar.addEventListener('click', comparar);
+carregarModelos();
+</script>
+</body>
+</html>
