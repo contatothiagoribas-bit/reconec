@@ -1,0 +1,250 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Teste de reconhecimento facial — Nascer do Sol Copacabana</title>
+<script src="https://raw.githubusercontent.com/vladmandic/face-api/master/dist/face-api.js"></script>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, 'Segoe UI', Arial, sans-serif;
+    background: #f6f4ef;
+    color: #23303a;
+    padding: 24px 16px 60px;
+  }
+  .wrap { max-width: 780px; margin: 0 auto; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  .subtitle { color: #5b6b76; font-size: 14px; margin-bottom: 24px; }
+  .card {
+    background: white; border-radius: 16px; padding: 22px;
+    box-shadow: 0 1px 2px rgba(20,30,40,.06), 0 8px 24px rgba(20,30,40,.06);
+    margin-bottom: 20px;
+  }
+  .card h2 { font-size: 15px; margin: 0 0 4px; }
+  .card .hint { font-size: 13px; color: #5b6b76; margin-bottom: 14px; }
+  input[type="file"] {
+    display: block; width: 100%; font-size: 14px; padding: 10px;
+    border: 2px dashed #cfd8dc; border-radius: 10px; background: #fafafa;
+  }
+  .filelist { font-size: 12.5px; color: #5b6b76; margin-top: 8px; }
+  button {
+    font-family: inherit; font-weight: 700; font-size: 15px; color: white;
+    background: linear-gradient(135deg, #f2793c, #f4a93a);
+    border: none; border-radius: 999px; padding: 13px 26px; cursor: pointer;
+    width: 100%; margin-top: 6px;
+  }
+  button:disabled { opacity: 0.5; cursor: default; }
+  #status {
+    font-size: 13.5px; color: #5b6b76; margin-top: 10px; min-height: 18px;
+    white-space: pre-line;
+  }
+  #status.erro { color: #b3261e; font-weight: 700; }
+  table { width: 100%; border-collapse: collapse; margin-top: 6px; }
+  th, td { text-align: left; padding: 10px 8px; font-size: 13.5px; border-bottom: 1px solid #eee; }
+  th { font-size: 11.5px; text-transform: uppercase; letter-spacing: .05em; color: #5b6b76; }
+  td.foto { width: 56px; }
+  td.foto img { width: 44px; height: 44px; border-radius: 8px; object-fit: cover; display: block; }
+  .match-sim { color: #1e7a34; font-weight: 800; }
+  .match-nao { color: #96a3ac; }
+  tr.encontrado td { background: #f0f9f1; }
+  .rodape { font-size: 12px; color: #7c8992; margin-top: 18px; line-height: 1.6; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Teste de reconhecimento facial</h1>
+  <div class="subtitle">Nascer do Sol Copacabana — sobe algumas fotos, envia uma foto de referência e vê se o sistema acha a pessoa certa.</div>
+
+  <div class="card">
+    <h2>1. Fotos da base (uma por cliente)</h2>
+    <div class="hint">Selecione várias fotos, uma pessoa por foto.</div>
+    <input type="file" id="baseInput" accept="image/*" multiple>
+    <div class="filelist" id="baseList">Nenhuma foto selecionada.</div>
+  </div>
+
+  <div class="card">
+    <h2>2. Foto de referência</h2>
+    <div class="hint">A foto da pessoa que você quer encontrar na base.</div>
+    <input type="file" id="refInput" accept="image/*">
+    <div class="filelist" id="refList">Nenhuma foto selecionada.</div>
+  </div>
+
+  <button id="btnComparar" disabled>Carregando reconhecimento facial…</button>
+  <div id="status"></div>
+
+  <div class="card" id="resultadoCard" style="display:none;">
+    <h2>Resultado</h2>
+    <table>
+      <thead>
+        <tr><th></th><th>Foto</th><th>Distância</th><th>Match?</th></tr>
+      </thead>
+      <tbody id="resultadoBody"></tbody>
+    </table>
+  </div>
+
+  <div class="rodape">
+    Roda inteiramente no seu navegador — nenhuma foto é enviada pra nenhum servidor.
+    Só a primeira vez baixa o modelo de reconhecimento (alguns MB); depois disso
+    fica em cache no navegador. Limiar de match: distância abaixo de 0.6 é
+    considerado a mesma pessoa.
+  </div>
+</div>
+
+<script>
+const MODEL_URL = 'https://raw.githubusercontent.com/vladmandic/face-api/master/model';
+const THRESHOLD = 0.6;
+
+const baseInput = document.getElementById('baseInput');
+const refInput = document.getElementById('refInput');
+const baseList = document.getElementById('baseList');
+const refList = document.getElementById('refList');
+const btnComparar = document.getElementById('btnComparar');
+const statusEl = document.getElementById('status');
+const resultadoCard = document.getElementById('resultadoCard');
+const resultadoBody = document.getElementById('resultadoBody');
+
+let modelosProntos = false;
+
+function setStatus(msg, isErro) {
+  statusEl.textContent = msg || '';
+  statusEl.className = isErro ? 'erro' : '';
+}
+
+function atualizarLista(input, listEl) {
+  const nomes = Array.from(input.files).map((f) => f.name);
+  listEl.textContent = nomes.length ? nomes.join(', ') : 'Nenhuma foto selecionada.';
+}
+
+baseInput.addEventListener('change', () => atualizarLista(baseInput, baseList));
+refInput.addEventListener('change', () => atualizarLista(refInput, refList));
+
+async function carregarModelos() {
+  try {
+    setStatus('Carregando modelo de reconhecimento facial (só na primeira vez)…');
+    await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
+    await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
+    await faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL);
+    modelosProntos = true;
+    btnComparar.disabled = false;
+    btnComparar.textContent = 'Comparar';
+    setStatus('Pronto.');
+  } catch (e) {
+    setStatus('Não consegui carregar o modelo de reconhecimento. Confira sua conexão com a internet e recarregue a página.', true);
+    console.error(e);
+  }
+}
+
+function carregarImagem(file) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    img.src = URL.createObjectURL(file);
+  });
+}
+
+async function calcularDescriptor(img) {
+  const deteccao = await faceapi
+    .detectSingleFace(img, new faceapi.TinyFaceDetectorOptions())
+    .withFaceLandmarks()
+    .withFaceDescriptor();
+  if (deteccao) return deteccao.descriptor;
+
+  // Sem rosto detectado (ex: foto já recortada rente ao rosto) — tenta
+  // calcular a assinatura direto em cima da imagem inteira.
+  try {
+    return await faceapi.nets.faceRecognitionNet.computeFaceDescriptor(img);
+  } catch (e) {
+    return null;
+  }
+}
+
+async function comparar() {
+  const arquivosBase = Array.from(baseInput.files);
+  const arquivosRef = Array.from(refInput.files);
+
+  if (arquivosBase.length === 0) {
+    setStatus('Selecione pelo menos uma foto na base.', true);
+    return;
+  }
+  if (arquivosRef.length === 0) {
+    setStatus('Selecione a foto de referência.', true);
+    return;
+  }
+
+  btnComparar.disabled = true;
+  resultadoCard.style.display = 'none';
+  resultadoBody.innerHTML = '';
+
+  setStatus('Lendo a foto de referência…');
+  const refImg = await carregarImagem(arquivosRef[0]);
+  const refDescriptor = await calcularDescriptor(refImg);
+  if (!refDescriptor) {
+    setStatus('Não encontrei nenhum rosto na foto de referência.', true);
+    btnComparar.disabled = false;
+    return;
+  }
+
+  const linhas = [];
+  for (let i = 0; i < arquivosBase.length; i++) {
+    const arquivo = arquivosBase[i];
+    setStatus(`Comparando (${i + 1}/${arquivosBase.length}): ${arquivo.name}…`);
+    const img = await carregarImagem(arquivo);
+    const descriptor = await calcularDescriptor(img);
+    if (!descriptor) {
+      linhas.push({ arquivo, distancia: null, url: img.src });
+      continue;
+    }
+    const distancia = faceapi.euclideanDistance(refDescriptor, descriptor);
+    linhas.push({ arquivo, distancia, url: img.src });
+  }
+
+  linhas.sort((a, b) => {
+    if (a.distancia === null) return 1;
+    if (b.distancia === null) return -1;
+    return a.distancia - b.distancia;
+  });
+
+  let algumMatch = false;
+  for (const linha of linhas) {
+    const tr = document.createElement('tr');
+    const isMatch = linha.distancia !== null && linha.distancia < THRESHOLD;
+    if (isMatch) { algumMatch = true; tr.classList.add('encontrado'); }
+
+    const tdFoto = document.createElement('td');
+    tdFoto.className = 'foto';
+    const img = document.createElement('img');
+    img.src = linha.url;
+    tdFoto.appendChild(img);
+
+    const tdNome = document.createElement('td');
+    tdNome.textContent = linha.arquivo.name;
+
+    const tdDist = document.createElement('td');
+    tdDist.textContent = linha.distancia === null ? 'sem rosto detectado' : linha.distancia.toFixed(4);
+
+    const tdMatch = document.createElement('td');
+    if (linha.distancia === null) {
+      tdMatch.textContent = '—';
+      tdMatch.className = 'match-nao';
+    } else {
+      tdMatch.textContent = isMatch ? '✅ SIM' : '—';
+      tdMatch.className = isMatch ? 'match-sim' : 'match-nao';
+    }
+
+    tr.append(tdFoto, tdNome, tdDist, tdMatch);
+    resultadoBody.appendChild(tr);
+  }
+
+  resultadoCard.style.display = 'block';
+  setStatus(algumMatch ? '✅ Encontrei a pessoa na base.' : '❌ Nenhuma foto da base bateu com a referência.');
+  btnComparar.disabled = false;
+}
+
+btnComparar.addEventListener('click', comparar);
+carregarModelos();
+</script>
+</body>
+</html>
