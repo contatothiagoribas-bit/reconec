@@ -5035,6 +5035,11 @@ return a / b;`,aie=`
   }
   .card h2 { font-size: 15px; margin: 0 0 4px; }
   .card .hint { font-size: 13px; color: #5b6b76; margin-bottom: 14px; }
+  .sensib { margin-bottom: 16px; padding-bottom: 14px; border-bottom: 1px solid #eee; }
+  .sensib-label { display: flex; align-items: center; justify-content: space-between; font-size: 13px; font-weight: 700; margin-bottom: 6px; }
+  .sensib-label span:last-child { color: #f2793c; }
+  .sensib input[type="range"] { width: 100%; accent-color: #f2793c; }
+  .sensib-hint { font-size: 11.5px; color: #7c8992; margin-top: 6px; line-height: 1.5; }
   input[type="file"] {
     display: block; width: 100%; font-size: 14px; padding: 10px;
     border: 2px dashed #cfd8dc; border-radius: 10px; background: #fafafa;
@@ -5087,6 +5092,14 @@ return a / b;`,aie=`
 
   <div class="card" id="resultadoCard" style="display:none;">
     <h2>Resultado</h2>
+    <div class="sensib">
+      <div class="sensib-label">
+        <span>Sensibilidade (limiar de match)</span>
+        <span id="thresholdValue">0.60</span>
+      </div>
+      <input type="range" id="thresholdSlider" min="0.45" max="0.75" step="0.01" value="0.6">
+      <div class="sensib-hint">Puxe pra direita se está deixando fotos de fora; pra esquerda se está trazendo gente errada. Não precisa comparar de novo.</div>
+    </div>
     <table>
       <thead>
         <tr><th></th><th>Foto</th><th>Rostos</th><th>Distância</th><th>Match?</th></tr>
@@ -5098,17 +5111,21 @@ return a / b;`,aie=`
   <div class="rodape">
     Roda inteiramente no seu navegador — nenhuma foto é enviada pra nenhum servidor.
     Só a primeira vez baixa o modelo de reconhecimento (alguns MB); depois disso
-    fica em cache no navegador. Limiar de match: distância abaixo de 0.6 é
-    considerado a mesma pessoa.
+    fica em cache no navegador. Use o controle de sensibilidade acima pra
+    ajustar o limiar de match sem precisar comparar de novo.
   </div>
 </div>
 
 <script>
 const MODEL_URL = 'https://raw.githubusercontent.com/vladmandic/face-api/master/model';
-const THRESHOLD = 0.6;
 // SsdMobilenetv1 é mais confiável que o TinyFaceDetector em foto real (com
-// fundo, ângulo variado, iluminação de rua/praia).
-const detectorOptions = () => new faceapi.SsdMobilenetv1Options({ minConfidence: 0.5 });
+// fundo, ângulo variado, iluminação de rua/praia). minConfidence baixo pra
+// não perder rosto de ângulo mais difícil — uma detecção "sobrando" não é
+// problema, ela só vai gerar uma distância alta e ser descartada.
+const detectorOptions = () => new faceapi.SsdMobilenetv1Options({ minConfidence: 0.3 });
+
+let threshold = 0.6;
+let ultimasLinhas = null; // guarda as distâncias já calculadas pra reagir ao slider sem reprocessar
 
 const baseInput = document.getElementById('baseInput');
 const refInput = document.getElementById('refInput');
@@ -5118,6 +5135,8 @@ const btnComparar = document.getElementById('btnComparar');
 const statusEl = document.getElementById('status');
 const resultadoCard = document.getElementById('resultadoCard');
 const resultadoBody = document.getElementById('resultadoBody');
+const thresholdSlider = document.getElementById('thresholdSlider');
+const thresholdValue = document.getElementById('thresholdValue');
 
 let modelosProntos = false;
 
@@ -5179,6 +5198,49 @@ async function detectarRostoPrincipal(img) {
   return rostos.reduce((a, b) => (a.area > b.area ? a : b)).descriptor;
 }
 
+// Só re-renderiza a tabela com o limiar atual — não refaz a detecção nem a
+// comparação. É o que roda quando você arrasta o slider de sensibilidade.
+function renderizarResultados() {
+  if (!ultimasLinhas) return;
+  resultadoBody.innerHTML = '';
+  let algumMatch = false;
+
+  for (const linha of ultimasLinhas) {
+    const tr = document.createElement('tr');
+    const isMatch = linha.distancia !== null && linha.distancia < threshold;
+    if (isMatch) { algumMatch = true; tr.classList.add('encontrado'); }
+
+    const tdFoto = document.createElement('td');
+    tdFoto.className = 'foto';
+    const img = document.createElement('img');
+    img.src = linha.url;
+    tdFoto.appendChild(img);
+
+    const tdNome = document.createElement('td');
+    tdNome.textContent = linha.arquivo.name;
+
+    const tdRostos = document.createElement('td');
+    tdRostos.textContent = linha.rostos === 0 ? '0' : String(linha.rostos);
+
+    const tdDist = document.createElement('td');
+    tdDist.textContent = linha.distancia === null ? 'sem rosto detectado' : linha.distancia.toFixed(4);
+
+    const tdMatch = document.createElement('td');
+    if (linha.distancia === null) {
+      tdMatch.textContent = '—';
+      tdMatch.className = 'match-nao';
+    } else {
+      tdMatch.textContent = isMatch ? '✅ SIM' : '—';
+      tdMatch.className = isMatch ? 'match-sim' : 'match-nao';
+    }
+
+    tr.append(tdFoto, tdNome, tdRostos, tdDist, tdMatch);
+    resultadoBody.appendChild(tr);
+  }
+
+  setStatus(algumMatch ? '✅ Encontrei a pessoa na base.' : '❌ Nenhuma foto da base bateu com a referência.');
+}
+
 async function comparar() {
   const arquivosBase = Array.from(baseInput.files);
   const arquivosRef = Array.from(refInput.files);
@@ -5194,6 +5256,7 @@ async function comparar() {
 
   btnComparar.disabled = true;
   resultadoCard.style.display = 'none';
+  ultimasLinhas = null;
   resultadoBody.innerHTML = '';
 
   setStatus('Lendo a foto de referência…');
@@ -5226,44 +5289,17 @@ async function comparar() {
     return a.distancia - b.distancia;
   });
 
-  let algumMatch = false;
-  for (const linha of linhas) {
-    const tr = document.createElement('tr');
-    const isMatch = linha.distancia !== null && linha.distancia < THRESHOLD;
-    if (isMatch) { algumMatch = true; tr.classList.add('encontrado'); }
-
-    const tdFoto = document.createElement('td');
-    tdFoto.className = 'foto';
-    const img = document.createElement('img');
-    img.src = linha.url;
-    tdFoto.appendChild(img);
-
-    const tdNome = document.createElement('td');
-    tdNome.textContent = linha.arquivo.name;
-
-    const tdRostos = document.createElement('td');
-    tdRostos.textContent = linha.rostos === 0 ? '0' : String(linha.rostos);
-
-    const tdDist = document.createElement('td');
-    tdDist.textContent = linha.distancia === null ? 'sem rosto detectado' : linha.distancia.toFixed(4);
-
-    const tdMatch = document.createElement('td');
-    if (linha.distancia === null) {
-      tdMatch.textContent = '—';
-      tdMatch.className = 'match-nao';
-    } else {
-      tdMatch.textContent = isMatch ? '✅ SIM' : '—';
-      tdMatch.className = isMatch ? 'match-sim' : 'match-nao';
-    }
-
-    tr.append(tdFoto, tdNome, tdRostos, tdDist, tdMatch);
-    resultadoBody.appendChild(tr);
-  }
-
+  ultimasLinhas = linhas;
   resultadoCard.style.display = 'block';
-  setStatus(algumMatch ? '✅ Encontrei a pessoa na base.' : '❌ Nenhuma foto da base bateu com a referência.');
+  renderizarResultados();
   btnComparar.disabled = false;
 }
+
+thresholdSlider.addEventListener('input', () => {
+  threshold = Number(thresholdSlider.value);
+  thresholdValue.textContent = threshold.toFixed(2);
+  renderizarResultados();
+});
 
 btnComparar.addEventListener('click', comparar);
 carregarModelos();

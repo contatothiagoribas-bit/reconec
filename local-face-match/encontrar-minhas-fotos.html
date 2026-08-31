@@ -5075,6 +5075,11 @@ return a / b;`,aie=`
   #resultCard { display: none; }
   .result-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
   .result-count { font-size: 12px; font-weight: 800; color: #F2793C; background: oklch(90% 0.05 45); padding: 4px 10px; border-radius: 999px; }
+  .sensib { margin-bottom: 18px; padding-bottom: 16px; border-bottom: 1px solid oklch(24% 0.03 250 / 0.08); }
+  .sensib-label { display: flex; align-items: center; justify-content: space-between; font-size: 13px; font-weight: 700; margin-bottom: 6px; }
+  .sensib-label span:last-child { color: #F2793C; font-family: 'Baloo 2', sans-serif; }
+  .sensib input[type="range"] { width: 100%; accent-color: #F2793C; }
+  .sensib-hint { font-size: 11.5px; color: oklch(50% 0.02 250); margin-top: 6px; line-height: 1.5; }
   .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
   .photo {
     aspect-ratio: 1; border-radius: 14px; position: relative; overflow: hidden; background: oklch(93% 0.01 85);
@@ -5151,6 +5156,14 @@ return a / b;`,aie=`
       <h2 style="margin:0;">Suas fotos</h2>
       <span class="result-count" id="resultCount">0 fotos</span>
     </div>
+    <div class="sensib">
+      <div class="sensib-label">
+        <span>Sensibilidade</span>
+        <span id="thresholdValue">0.60</span>
+      </div>
+      <input type="range" id="thresholdSlider" min="0.45" max="0.75" step="0.01" value="0.6">
+      <div class="sensib-hint">Puxe pra direita se está deixando fotos de fora; pra esquerda se está trazendo gente errada. Não precisa comparar de novo.</div>
+    </div>
     <div class="grid" id="grid"></div>
   </div>
 
@@ -5162,11 +5175,15 @@ return a / b;`,aie=`
 
 <script>
 const MODEL_URL = 'https://raw.githubusercontent.com/vladmandic/face-api/master/model';
-const THRESHOLD = 0.6;
 // SsdMobilenetv1 é mais confiável que o TinyFaceDetector em foto real (com
-// fundo, ângulo variado, iluminação de rua/praia) — a mesma configuração
-// usada no script de terminal.
-const detectorOptions = () => new faceapi.SsdMobilenetv1Options({ minConfidence: 0.5 });
+// fundo, ângulo variado, iluminação de rua/praia). minConfidence baixo pra
+// não perder rosto de ângulo mais difícil (óculos de sol, de lado etc.) —
+// uma detecção "sobrando" não é problema, ela só vai gerar uma distância
+// alta e ser descartada na comparação.
+const detectorOptions = () => new faceapi.SsdMobilenetv1Options({ minConfidence: 0.3 });
+
+let threshold = 0.6;
+let ultimasLinhas = null; // guarda as distâncias já calculadas pra reagir ao slider sem reprocessar
 
 const baseInput = document.getElementById('baseInput');
 const refInput = document.getElementById('refInput');
@@ -5245,6 +5262,31 @@ function svgCheckBadge() {
   return `<svg width="20" height="20" viewBox="0 0 24 24" class="badge"><circle cx="12" cy="12" r="10" fill="#F2793C"/><path d="M7 12.5l3 3 7-7" stroke="white" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 }
 
+// Só re-renderiza a grade com o limiar atual — não refaz a detecção nem a
+// comparação. É o que roda quando você arrasta o slider de sensibilidade.
+function renderizarResultados() {
+  if (!ultimasLinhas) return;
+  grid.innerHTML = '';
+  const encontradas = ultimasLinhas.filter((l) => l.distancia !== null && l.distancia < threshold);
+  resultCount.textContent = `${encontradas.length} foto${encontradas.length === 1 ? '' : 's'}`;
+
+  for (const linha of ultimasLinhas) {
+    const isMatch = linha.distancia !== null && linha.distancia < threshold;
+    const div = document.createElement('div');
+    div.className = 'photo' + (isMatch ? '' : ' nao-encontrado');
+    div.innerHTML = `
+      <img src="${linha.url}" alt="${linha.arquivo.name}">
+      ${isMatch ? svgCheckBadge() : ''}
+      <span class="dist">${linha.distancia === null ? 'sem rosto' : linha.distancia.toFixed(2)}</span>
+    `;
+    grid.appendChild(div);
+  }
+
+  setStatus(encontradas.length > 0
+    ? `✅ Encontramos ${encontradas.length} foto${encontradas.length === 1 ? '' : 's'} com você.`
+    : '❌ Não encontramos nenhuma foto com você nesse evento.');
+}
+
 async function comparar() {
   const arquivosBase = Array.from(baseInput.files);
   const arquivosRef = Array.from(refInput.files);
@@ -5254,6 +5296,7 @@ async function comparar() {
 
   btnComparar.disabled = true;
   resultCard.style.display = 'none';
+  ultimasLinhas = null;
   grid.innerHTML = '';
 
   setStatus('Lendo a sua selfie…');
@@ -5284,27 +5327,19 @@ async function comparar() {
     return a.distancia - b.distancia;
   });
 
-  const encontradas = linhas.filter((l) => l.distancia !== null && l.distancia < THRESHOLD);
-  resultCount.textContent = `${encontradas.length} foto${encontradas.length === 1 ? '' : 's'}`;
-
-  for (const linha of linhas) {
-    const isMatch = linha.distancia !== null && linha.distancia < THRESHOLD;
-    const div = document.createElement('div');
-    div.className = 'photo' + (isMatch ? '' : ' nao-encontrado');
-    div.innerHTML = `
-      <img src="${linha.url}" alt="${linha.arquivo.name}">
-      ${isMatch ? svgCheckBadge() : ''}
-      <span class="dist">${linha.distancia === null ? 'sem rosto' : linha.distancia.toFixed(2)}</span>
-    `;
-    grid.appendChild(div);
-  }
-
+  ultimasLinhas = linhas;
   resultCard.style.display = 'block';
-  setStatus(encontradas.length > 0
-    ? `✅ Encontramos ${encontradas.length} foto${encontradas.length === 1 ? '' : 's'} com você.`
-    : '❌ Não encontramos nenhuma foto com você nesse evento.');
+  renderizarResultados();
   btnComparar.disabled = false;
 }
+
+const thresholdSlider = document.getElementById('thresholdSlider');
+const thresholdValue = document.getElementById('thresholdValue');
+thresholdSlider.addEventListener('input', () => {
+  threshold = Number(thresholdSlider.value);
+  thresholdValue.textContent = threshold.toFixed(2);
+  renderizarResultados();
+});
 
 btnComparar.addEventListener('click', comparar);
 carregarModelos();

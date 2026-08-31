@@ -37,8 +37,10 @@ const REFERENCIA_DIR = path.join(ROOT, 'referencia');
 const RESULTADOS_DIR = path.join(ROOT, 'resultados');
 
 // Distância euclidiana máxima pra considerar "mesma pessoa". Padrão recomendado
-// pelo face-api.js é 0.6 — ajuste aqui se estiver dando muito falso positivo/negativo.
-const THRESHOLD = 0.6;
+// pelo face-api.js é 0.6 — suba se estiver perdendo foto que deveria bater,
+// desça se estiver aceitando gente diferente. Pode sobrescrever sem editar o
+// arquivo: `THRESHOLD=0.65 npm run match`.
+const THRESHOLD = Number(process.env.THRESHOLD) || 0.6;
 
 const EXTENSOES_VALIDAS = ['.jpg', '.jpeg', '.png'];
 
@@ -63,7 +65,7 @@ function listarImagens(dir: string): string[] {
  */
 async function detectarRostos(img: canvas.Image): Promise<Float32Array[]> {
   const deteccoes = await faceapi
-    .detectAllFaces(img as unknown as faceapi.TNetInput, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.5 }))
+    .detectAllFaces(img as unknown as faceapi.TNetInput, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.3 }))
     .withFaceLandmarks()
     .withFaceDescriptors();
   return deteccoes.map((d) => d.descriptor);
@@ -72,7 +74,7 @@ async function detectarRostos(img: canvas.Image): Promise<Float32Array[]> {
 /** Descriptor do maior rosto da imagem (heurística pra selfie: o rosto de quem tirou a foto costuma ser o maior/mais central). */
 async function detectarRostoPrincipal(img: canvas.Image): Promise<Float32Array | null> {
   const deteccoes = await faceapi
-    .detectAllFaces(img as unknown as faceapi.TNetInput, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.5 }))
+    .detectAllFaces(img as unknown as faceapi.TNetInput, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.3 }))
     .withFaceLandmarks()
     .withFaceDescriptors();
   if (deteccoes.length === 0) return null;
