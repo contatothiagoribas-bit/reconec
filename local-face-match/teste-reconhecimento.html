@@ -5102,7 +5102,7 @@ return a / b;`,aie=`
     </div>
     <table>
       <thead>
-        <tr><th></th><th>Foto</th><th>Rostos</th><th>Distância</th><th>Match?</th></tr>
+        <tr><th></th><th>Foto</th><th>Rostos</th><th>Distância</th><th>Match?</th><th></th></tr>
       </thead>
       <tbody id="resultadoBody"></tbody>
     </table>
@@ -5234,7 +5234,17 @@ function renderizarResultados() {
       tdMatch.className = isMatch ? 'match-sim' : 'match-nao';
     }
 
-    tr.append(tdFoto, tdNome, tdRostos, tdDist, tdMatch);
+    const tdBaixar = document.createElement('td');
+    if (isMatch) {
+      const link = document.createElement('a');
+      link.href = linha.url;
+      link.download = linha.arquivo.name;
+      link.textContent = 'Baixar';
+      link.style.fontWeight = '700';
+      tdBaixar.appendChild(link);
+    }
+
+    tr.append(tdFoto, tdNome, tdRostos, tdDist, tdMatch, tdBaixar);
     resultadoBody.appendChild(tr);
   }
 

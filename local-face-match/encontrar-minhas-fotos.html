@@ -5088,6 +5088,15 @@ return a / b;`,aie=`
   .photo.nao-encontrado img { opacity: 0.35; filter: grayscale(60%); }
   .photo .badge { position: absolute; top: 6px; right: 6px; }
   .photo .dist { position: absolute; bottom: 6px; left: 6px; background: oklch(20% 0.03 250 / 0.6); color: white; font-size: 10.5px; font-weight: 700; padding: 2px 7px; border-radius: 999px; }
+  .photo.encontrado { cursor: pointer; }
+  .photo .download-overlay {
+    position: absolute; inset: 0; background: oklch(20% 0.03 250 / 0.55);
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+    color: white; font-family: 'Baloo 2', sans-serif; font-weight: 700; font-size: 12px;
+    opacity: 0; transition: opacity .15s;
+  }
+  .photo.encontrado:hover .download-overlay, .photo.encontrado:focus-visible .download-overlay { opacity: 1; }
+  .photo.encontrado:active .download-overlay { opacity: 1; background: oklch(20% 0.03 250 / 0.7); }
   .rodape { font-size: 12px; color: oklch(50% 0.02 250); text-align: center; margin-top: 22px; line-height: 1.6; display: flex; align-items: center; justify-content: center; gap: 8px; }
 </style>
 </head>
@@ -5098,6 +5107,7 @@ return a / b;`,aie=`
   <symbol id="i-upload-cloud" viewBox="0 0 24 24"><path d="M7.2 17.5a4 4 0 0 1-.4-7.98A5.5 5.5 0 0 1 17.3 9a4 4 0 0 1-.3 8H7.2Z"/><path d="M12 20v-7M9.3 15.7 12 13l2.7 2.7"/></symbol>
   <symbol id="i-face-scan" viewBox="0 0 24 24"><path d="M4 8V5.8A1.8 1.8 0 0 1 5.8 4H8"/><path d="M16 4h2.2A1.8 1.8 0 0 1 20 5.8V8"/><path d="M4 16v2.2A1.8 1.8 0 0 0 5.8 20H8"/><path d="M20 16v2.2a1.8 1.8 0 0 1-1.8 1.8H16"/><circle cx="12" cy="10.3" r="2.3"/><path d="M8.2 17c.9-2 2.6-3 3.8-3s2.9 1 3.8 3"/></symbol>
   <symbol id="i-shield-check" viewBox="0 0 24 24"><path d="M12 3.2 19 6v6c0 4.6-3 7.6-7 8.8-4-1.2-7-4.2-7-8.8V6l7-2.8Z"/><path d="M8.7 12.3 11 14.6l4.3-4.6"/></symbol>
+  <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 3.5v11M8 10.5l4 4 4-4"/><path d="M5 18.5h14"/></symbol>
 </svg>
 
 <header>
@@ -5262,6 +5272,31 @@ function svgCheckBadge() {
   return `<svg width="20" height="20" viewBox="0 0 24 24" class="badge"><circle cx="12" cy="12" r="10" fill="#F2793C"/><path d="M7 12.5l3 3 7-7" stroke="white" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 }
 
+function svgDownloadOverlay() {
+  return `<div class="download-overlay">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="#i-download"/></svg>
+    Baixar
+  </div>`;
+}
+
+// Baixa o arquivo original (sem recomprimir/redimensionar) — mesma
+// qualidade da foto que foi enviada.
+function baixarFoto(url, nomeArquivo) {
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = nomeArquivo;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}
+
+// Delegação de clique: um listener só, funciona pra qualquer render.
+grid.addEventListener('click', (ev) => {
+  const foto = ev.target.closest('.photo.encontrado');
+  if (!foto) return;
+  baixarFoto(foto.dataset.url, foto.dataset.nome);
+});
+
 // Só re-renderiza a grade com o limiar atual — não refaz a detecção nem a
 // comparação. É o que roda quando você arrasta o slider de sensibilidade.
 function renderizarResultados() {
@@ -5273,17 +5308,22 @@ function renderizarResultados() {
   for (const linha of ultimasLinhas) {
     const isMatch = linha.distancia !== null && linha.distancia < threshold;
     const div = document.createElement('div');
-    div.className = 'photo' + (isMatch ? '' : ' nao-encontrado');
+    div.className = 'photo' + (isMatch ? ' encontrado' : ' nao-encontrado');
+    if (isMatch) {
+      div.dataset.url = linha.url;
+      div.dataset.nome = linha.arquivo.name;
+      div.title = 'Clique para baixar em alta qualidade';
+    }
     div.innerHTML = `
       <img src="${linha.url}" alt="${linha.arquivo.name}">
-      ${isMatch ? svgCheckBadge() : ''}
+      ${isMatch ? svgCheckBadge() + svgDownloadOverlay() : ''}
       <span class="dist">${linha.distancia === null ? 'sem rosto' : linha.distancia.toFixed(2)}</span>
     `;
     grid.appendChild(div);
   }
 
   setStatus(encontradas.length > 0
-    ? `✅ Encontramos ${encontradas.length} foto${encontradas.length === 1 ? '' : 's'} com você.`
+    ? `✅ Encontramos ${encontradas.length} foto${encontradas.length === 1 ? '' : 's'} com você. Clique numa foto pra baixar em alta qualidade.`
     : '❌ Não encontramos nenhuma foto com você nesse evento.');
 }
 
