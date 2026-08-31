@@ -1,0 +1,10 @@
+node_modules/
+.next/
+out/
+
+# fotos e índice de reconhecimento — dados reais, não entram no repositório
+data/photos/*
+!data/photos/.gitkeep
+data/index.json
+
+.env.local

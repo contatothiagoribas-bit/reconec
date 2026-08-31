@@ -1,0 +1,21 @@
+{
+  "name": "local-face-match",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Teste local: sobe fotos de clientes numa base e busca por uma foto de referência via reconhecimento facial.",
+  "type": "commonjs",
+  "scripts": {
+    "match": "ts-node src/matchFaces.ts"
+  },
+  "dependencies": {
+    "@tensorflow/tfjs": "^4.22.0",
+    "@tensorflow/tfjs-node": "^4.22.0",
+    "@vladmandic/face-api": "^1.7.15",
+    "canvas": "^3.2.3"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.5.4"
+  }
+}

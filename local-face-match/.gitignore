@@ -1,0 +1,10 @@
+node_modules/
+dist/
+
+# fotos reais de clientes não entram no repositório
+base/*
+!base/.gitkeep
+referencia/*
+!referencia/.gitkeep
+resultados/*
+!resultados/.gitkeep
