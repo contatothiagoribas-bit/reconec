@@ -26,6 +26,48 @@ function esperar(ms: number): Promise<void> {
 }
 
 /**
+ * Consegue o `Asset` que vai ser colocado no álbum do cliente.
+ *
+ * Prioriza o asset ORIGINAL da Galeria (`assetContentUri`) — assim `Album.create`/
+ * `album.add` (com `moveAssets: true`) move o vídeo de verdade que o cliente já
+ * tinha, sem criar nenhuma cópia. Só cai pro comportamento antigo (`Asset.create`,
+ * que importa a cópia temporária do vídeo como um asset NOVO) quando o original
+ * não está disponível — seletor não devolveu o ID (comum com acesso limitado à
+ * galeria) ou o ID reconstruído não corresponde a nenhum asset de verdade. Nesse
+ * caso o vídeo original fica intacto onde estava e uma cópia nova é que vai pro
+ * álbum — funciona, mas duplica o arquivo na Galeria.
+ */
+async function obterAssetParaMover(uriCopiaTemp: string, assetContentUriOriginal?: string): Promise<Asset> {
+  if (assetContentUriOriginal) {
+    try {
+      const original = new Asset(assetContentUriOriginal);
+      await original.getFilename(); // confirma que o asset original ainda existe antes de seguir
+      return original;
+    } catch {
+      // ID reconstruído não bateu com nenhum asset real — segue pro fallback abaixo.
+    }
+  }
+
+  try {
+    return await Asset.create(uriCopiaTemp);
+  } catch (erro) {
+    const mensagem = erro instanceof Error ? erro.message : String(erro);
+    // ENOENT/FileNotFoundException aqui costuma ser o arquivo temporário do
+    // vídeo (cache do seletor da galeria) tendo sido apagado pelo próprio
+    // Android nesse meio-tempo — comum sob pouco espaço livre no aparelho.
+    // Os frames já tinham sido lidos com sucesso antes disso (senão nem
+    // teria chegado aqui) — o problema é só nessa etapa final.
+    if (/ENOENT|FileNotFoundException|no such file/i.test(mensagem)) {
+      throw new Error(
+        "O arquivo temporário desse vídeo não existe mais (provavelmente removido pelo sistema " +
+          "por falta de espaço) — selecione esse vídeo de novo pra tentar organizar."
+      );
+    }
+    throw erro;
+  }
+}
+
+/**
  * Confere se o asset já aparece no álbum esperado, tentando algumas vezes com
  * uma pequena pausa entre elas — o MediaStore do Android pode levar um
  * instante pra refletir uma mudança de álbum recém-feita, então checar uma
@@ -69,25 +111,7 @@ export async function organizarVideo(
   config: ConfiguracaoReconhecimento
 ): Promise<ResultadoOrganizacao> {
   const albuns = decidirAlbuns(resultado.clientesReconhecidos, config);
-
-  let asset: Asset;
-  try {
-    asset = await Asset.create(resultado.video.uri);
-  } catch (erro) {
-    const mensagem = erro instanceof Error ? erro.message : String(erro);
-    // ENOENT/FileNotFoundException aqui costuma ser o arquivo temporário do
-    // vídeo (cache do seletor da galeria) tendo sido apagado pelo próprio
-    // Android nesse meio-tempo — comum sob pouco espaço livre no aparelho.
-    // Os frames já tinham sido lidos com sucesso antes disso (senão nem
-    // teria chegado aqui) — o problema é só nessa etapa final.
-    if (/ENOENT|FileNotFoundException|no such file/i.test(mensagem)) {
-      throw new Error(
-        "O arquivo temporário desse vídeo não existe mais (provavelmente removido pelo sistema " +
-          "por falta de espaço) — selecione esse vídeo de novo pra tentar organizar."
-      );
-    }
-    throw erro;
-  }
+  const asset = await obterAssetParaMover(resultado.video.uri, resultado.video.assetContentUri);
 
   for (const nomeAlbum of albuns) {
     const { album, criadoAgora } = await obterOuCriarAlbum(nomeAlbum, asset);

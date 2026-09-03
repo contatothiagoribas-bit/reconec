@@ -31,6 +31,14 @@ export interface VideoAsset {
   uri: string;
   nomeArquivo: string;
   duracaoMs: number;
+  /**
+   * URI de conteúdo (`content://...`) do asset ORIGINAL na Galeria, reconstruída a
+   * partir do `assetId` que o seletor devolve — permite mover o vídeo de verdade
+   * (organizador.ts) em vez de criar uma cópia nova a partir da cópia temporária
+   * (`uri`). Ausente quando o seletor não devolveu um ID (ex.: acesso limitado à
+   * galeria) — nesse caso o organizador cai pro comportamento antigo (cria cópia).
+   */
+  assetContentUri?: string;
 }
 
 /** Resultado do reconhecimento facial em um frame/foto. */

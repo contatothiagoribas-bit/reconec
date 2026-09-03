@@ -1,3 +1,4 @@
+import { Platform } from "react-native";
 import { Query, AssetField, MediaType, Asset } from "expo-media-library";
 import * as ImagePicker from "expo-image-picker";
 import { VideoAsset } from "../types";
@@ -46,6 +47,7 @@ export async function selecionarVideosDoDispositivo(): Promise<VideoAsset[]> {
       uri: await garantirUriEstavel(asset),
       nomeArquivo: asset.fileName ?? asset.uri.split("/").pop() ?? `video-${indice + 1}`,
       duracaoMs: asset.duration ?? 0,
+      assetContentUri: construirAssetContentUri(asset.assetId),
     }))
   );
 }
@@ -57,13 +59,11 @@ export async function selecionarVideosDoDispositivo(): Promise<VideoAsset[]> {
  * que o próprio Android pode apagar a qualquer momento (confirmado
  * acontecendo bastante sob pouco espaço livre: os frames que já tinham sido
  * lidos com sucesso passavam a dar erro de arquivo não encontrado minutos
- * depois — e isso persistiu mesmo tentando resolver a URI "de verdade" do
- * arquivo pelo assetId via expo-media-library, que não funcionou de forma
- * confiável no seletor de galeria deste aparelho). Copiar não depende de
- * nenhuma API de terceiro cooperando — só precisa conseguir ler o arquivo
- * uma vez, logo depois de selecionado, quando ele com certeza ainda existe.
- * Se a cópia falhar por qualquer motivo, segue com a URI original — mais
- * seguro tentar usar mesmo assim do que descartar o vídeo inteiro.
+ * depois). Serve só de apoio pra LER os frames durante o processamento — pra
+ * mover o vídeo de verdade pro álbum do cliente, o organizador usa o asset
+ * original (`assetContentUri` abaixo), não essa cópia. Se a cópia falhar por
+ * qualquer motivo, segue com a URI original — mais seguro tentar usar mesmo
+ * assim do que descartar o vídeo inteiro.
  */
 async function garantirUriEstavel(asset: ImagePicker.ImagePickerAsset): Promise<string> {
   try {
@@ -71,6 +71,35 @@ async function garantirUriEstavel(asset: ImagePicker.ImagePickerAsset): Promise<
   } catch {
     return asset.uri;
   }
+}
+
+/**
+ * Reconstrói a URI de conteúdo (`content://...`) do asset original na Galeria a
+ * partir do `assetId` que o seletor devolve.
+ *
+ * O `expo-image-picker` devolve só o número bruto do ID (ex.: `"12345"`), mas o
+ * construtor `new Asset(id)` do expo-media-library espera a URI de conteúdo
+ * completa (ex.: `content://media/external/video/media/12345`) — passar só o
+ * número faz a busca falhar silenciosamente. Essa incompatibilidade de formato
+ * é a causa mais provável de uma tentativa anterior (resolver a URI do arquivo
+ * pelo assetId) não ter funcionado de forma confiável.
+ *
+ * Ainda assim, no Android 13+ o seletor de galeria do sistema (Photo Picker) às
+ * vezes concede acesso a uma mídia sem expor o ID real dela no MediaStore — nesse
+ * caso `asset.assetId` já vem `null`/`undefined` e não tem o que reconstruir.
+ * Por isso essa função pode devolver `undefined`, e quem usa o resultado (ver
+ * organizador.ts) precisa ter um caminho alternativo pra esse caso.
+ */
+function construirAssetContentUri(assetId: string | null | undefined): string | undefined {
+  if (!assetId) {
+    return undefined;
+  }
+  if (Platform.OS === "android") {
+    return `content://media/external/video/media/${assetId}`;
+  }
+  // No iOS o assetId do seletor já é o identificador local do PHAsset, que é
+  // exatamente o que o construtor do Asset espera — sem reconstrução.
+  return assetId;
 }
 
 async function paraVideoAsset(asset: Asset): Promise<VideoAsset> {

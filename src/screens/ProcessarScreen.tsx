@@ -137,8 +137,9 @@ export default function ProcessarScreen() {
           const diagnosticoBase = resultado.avisoLeitura ?? descreverDiagnostico(resultado.clientesReconhecidos);
           if (organizar) {
             const { albuns, aviso } = await organizarVideo(resultado, CONFIG_PADRAO);
-            // O vídeo real já foi importado pro álbum do cliente — a cópia
-            // temporária que o app fez na seleção (ver biblioteca.ts) não
+            // O vídeo já foi colocado no álbum do cliente (o original, quando
+            // possível — ver organizador.ts) — a cópia temporária que o app fez
+            // na seleção (ver biblioteca.ts) só servia pra ler os frames e não
             // serve mais pra nada a partir daqui.
             apagarArquivoPermanente(resultado.video.uri);
             const diagnostico = aviso ? `${diagnosticoBase} — atenção: ${aviso}` : diagnosticoBase;
